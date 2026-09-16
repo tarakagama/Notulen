@@ -23,7 +23,7 @@ export default function App() {
             <Route path="/" element={<DashboardLayout title="Dashboard"><Dashboard /></DashboardLayout>} />
             <Route path="/notulen" element={<DashboardLayout title="Notulen"><NotulenList /></DashboardLayout>} />
             <Route path="/notulen/baru" element={<DashboardLayout title="Buat Notulen"><NotulenEditor /></DashboardLayout>} />
-            <Route path="/notulen/:id" element={<DashboardLayout title="Detail Notulen"><NotulenDetail /></DashboardLayout>} />
+            <Route path="/notulen/:id" element={<DashboardLayout title="Detail Notulen"><NotulenDetail /></DashboardLayout>} /> 
             <Route path="/notulen/:id/edit" element={<DashboardLayout title="Edit Notulen"><NotulenEditor /></DashboardLayout>} />
             <Route path="/action-items" element={<DashboardLayout title="Action Items"><ActionItems /></DashboardLayout>} />
             <Route path="/users" element={<DashboardLayout title="User Management"><Users /></DashboardLayout>} />
