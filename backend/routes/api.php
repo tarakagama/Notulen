@@ -8,10 +8,7 @@ use App\Http\Controllers\DiscussionFormalizationController;
 use App\Http\Controllers\MeetingController;
 use App\Http\Controllers\MeetingExportController;
 use App\Http\Controllers\UserController;
-use Illuminate\Support\Facades\Schedule;
 use Illuminate\Support\Facades\Route;
-
-Schedule::command('action-items:mark-overdue')->dailyAt('00:05');
 
 // ── Auth (publik, tanpa login) ────────────────────────────────────────
 Route::post('/login', [AuthController::class, 'login']);
@@ -21,9 +18,14 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
+    Route::put('/profile', [AuthController::class, 'updateProfile']);
+    Route::put('/profile/password', [AuthController::class, 'updatePassword']);
 
-    // ── User (buat dropdown PIC/attendee/approver) ────────────────────
+    // ── User (dropdown + User Management admin) ────────────────────────
     Route::get('/users', [UserController::class, 'index']);
+    Route::post('/users', [UserController::class, 'store']);
+    Route::put('/users/{user}', [UserController::class, 'update']);
+    Route::delete('/users/{user}', [UserController::class, 'destroy']);
 
     // ── Daftar Notulensi (FR-5.x) ──────────────────────────────────────
     // PENTING: route statis (pending-approvals) HARUS didaftarkan SEBELUM
@@ -49,6 +51,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/discussion-notes/formalize', [DiscussionFormalizationController::class, 'formalize']);
 
     // ── Action Items / "Tugas Saya" (FR-3.4, FR-3.5) ───────────────────
+    Route::get('/action-items', [ActionItemController::class, 'index']);
     Route::get('/my-tasks', [ActionItemController::class, 'myTasks']);
     Route::patch('/action-items/{actionItem}/status', [ActionItemController::class, 'updateStatus']);
     Route::delete('/action-items/{actionItem}', [ActionItemController::class, 'destroy']);

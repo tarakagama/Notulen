@@ -63,4 +63,41 @@ class AuthController extends Controller
     {
         return $request->user()->only(['id', 'full_name', 'email', 'is_admin', 'division', 'position_title']);
     }
+
+    /**
+     * Update profil sendiri (nama, divisi, jabatan) — bukan lewat admin panel.
+     */
+    public function updateProfile(Request $request)
+    {
+        $data = $request->validate([
+            'full_name' => ['required', 'string', 'max:150'],
+            'division' => ['nullable', 'string', 'max:100'],
+            'position_title' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $request->user()->update($data);
+
+        return $request->user()->fresh()->only(['id', 'full_name', 'email', 'is_admin', 'division', 'position_title']);
+    }
+
+    /**
+     * Ganti password sendiri, wajib konfirmasi password lama dulu.
+     */
+    public function updatePassword(Request $request)
+    {
+        $data = $request->validate([
+            'current_password' => ['required', 'string'],
+            'new_password' => ['required', 'string', 'min:8', 'confirmed'],
+        ]);
+
+        if (! Hash::check($data['current_password'], $request->user()->password)) {
+            throw ValidationException::withMessages([
+                'current_password' => ['Password saat ini salah.'],
+            ]);
+        }
+
+        $request->user()->update(['password' => $data['new_password']]);
+
+        return response()->json(['message' => 'Password berhasil diubah.']);
+    }
 }

@@ -9,6 +9,31 @@ use Illuminate\Http\Request;
 class ActionItemController extends Controller
 {
     /**
+     * Daftar SEMUA action item lintas rapat (bukan cuma milik sendiri) —
+     * dipakai halaman "Action Items" overview. Beda dari myTasks() yang
+     * cuma filter pic_id = current user.
+     */
+    public function index(Request $request)
+    {
+        $query = ActionItem::with(['pic', 'meeting:id,meeting_title']);
+
+        if ($status = $request->query('status')) {
+            $query->whereIn('status', (array) $status);
+        }
+
+        if ($search = $request->query('search')) {
+            $query->where('description', 'like', "%{$search}%");
+        }
+
+        if ($picId = $request->query('pic_id')) {
+            $query->where('pic_id', $picId);
+        }
+
+        return $query->orderBy('deadline')
+            ->paginate($request->query('per_page', 15));
+    }
+
+    /**
      * FR-3.4: "Tugas Saya" — seluruh action item milik user yang login,
      * lintas rapat.
      */
