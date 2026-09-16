@@ -1,44 +1,108 @@
-import { LayoutDashboard, FileText, CheckSquare, Users, Settings, LogOut } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { useState } from 'react';
+import {
+  LayoutDashboard, FileText, CheckSquare, Users, Settings,
+  LogOut, ChevronDown, User, Lock, Bell,
+} from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
   { icon: FileText, label: 'Notulen', path: '/notulen' },
   { icon: CheckSquare, label: 'Action Items', path: '/action-items' },
   { icon: Users, label: 'User Management', path: '/users' },
-  { icon: Settings, label: 'Pengaturan', path: '/settings' },
+  {
+    icon: Settings,
+    label: 'Pengaturan',
+    path: '/settings',
+    children: [
+      { icon: User, label: 'Profil', path: '/settings/profil' },
+      { icon: Lock, label: 'Keamanan', path: '/settings/keamanan' },
+      { icon: Bell, label: 'Notifikasi', path: '/settings/notifikasi' },
+    ],
+  },
 ];
 
-export default function Sidebar({ activePath = '/' }) {
+export default function Sidebar() {
+  const location = useLocation();
+  const [expanded, setExpanded] = useState(
+    location.pathname.startsWith('/settings') ? 'Pengaturan' : null
+  );
+
   return (
     <aside className="fixed left-0 top-0 h-screen w-60 bg-[#0f2557] flex flex-col">
       {/* Logo */}
       <div className="h-14 flex items-center px-5 border-b border-white/10">
         <span className="text-white font-semibold text-sm tracking-wide">MoMHub</span>
-        <span className="ml-2 text-[10px] text-blue-300 bg-blue-900/50 px-1.5 py-0.5 rounded">
-          PLN EPI
-        </span>
       </div>
 
       {/* Nav */}
       <nav className="flex-1 py-3 overflow-y-auto">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive = item.path === activePath;
+          const hasChildren = !!item.children;
+          const isParentActive = location.pathname.startsWith(item.path);
+          const isOpen = expanded === item.label;
+
+          if (!hasChildren) {
+            const isActive = location.pathname === item.path;
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`flex items-center gap-3 px-5 py-2.5 text-sm transition-colors ${
+                  isActive
+                    ? 'bg-white/10 text-white border-l-2 border-blue-400'
+                    : 'text-blue-200/70 hover:bg-white/5 hover:text-white border-l-2 border-transparent'
+                }`}
+              >
+                <Icon size={17} strokeWidth={1.75} />
+                {item.label}
+              </Link>
+            );
+          }
 
           return (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`flex items-center gap-3 px-5 py-2.5 text-sm transition-colors ${
-                isActive
-                  ? 'bg-white/10 text-white border-l-2 border-blue-400'
-                  : 'text-blue-200/70 hover:bg-white/5 hover:text-white border-l-2 border-transparent'
-              }`}
-            >
-              <Icon size={17} strokeWidth={1.75} />
-              {item.label}
-            </Link>
+            <div key={item.label}>
+              <button
+                onClick={() => setExpanded(isOpen ? null : item.label)}
+                className={`w-full flex items-center gap-3 px-5 py-2.5 text-sm transition-colors ${
+                  isParentActive
+                    ? 'bg-white/10 text-white border-l-2 border-blue-400'
+                    : 'text-blue-200/70 hover:bg-white/5 hover:text-white border-l-2 border-transparent'
+                }`}
+              >
+                <Icon size={17} strokeWidth={1.75} />
+                <span className="flex-1 text-left">{item.label}</span>
+                <ChevronDown
+                  size={14}
+                  strokeWidth={2}
+                  className={`transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                />
+              </button>
+
+              {isOpen && (
+                <div className="bg-black/10">
+                  {item.children.map((child) => {
+                    const ChildIcon = child.icon;
+                    const isChildActive = location.pathname === child.path;
+                    return (
+                      <Link
+                        key={child.path}
+                        to={child.path}
+                        className={`flex items-center gap-3 pl-10 pr-5 py-2 text-xs transition-colors ${
+                          isChildActive
+                            ? 'text-white font-medium'
+                            : 'text-blue-200/60 hover:text-white'
+                        }`}
+                      >
+                        <ChildIcon size={14} strokeWidth={1.75} />
+                        {child.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           );
         })}
       </nav>

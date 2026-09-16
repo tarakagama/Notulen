@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Lock, Mail } from 'lucide-react';
+import logoPlnEpi from '../assets/logo-plnepi.png';
 
 export default function Login() {
   const [form, setForm] = useState({ email: '', password: '' });
@@ -14,11 +15,8 @@ export default function Login() {
     <div className="min-h-screen flex bg-[#f4f5f7]">
       {/* Panel kiri — branding */}
       <div className="hidden lg:flex lg:w-1/2 bg-[#0f2557] flex-col justify-between p-12">
-        <div>
-          <span className="text-white font-semibold text-lg tracking-wide">MoMHub</span>
-          <span className="ml-2 text-xs text-blue-300 bg-blue-900/50 px-2 py-0.5 rounded">
-            PLN EPI
-          </span>
+        <div className="flex items-center gap-2 bg-white rounded px-3 py-2 w-fit">
+        <img src={logoPlnEpi} alt="PLN EPI" className="h-8 w-auto" />
         </div>
         <div>
           <h1 className="text-white text-2xl font-semibold leading-snug mb-2">

@@ -7,55 +7,20 @@ import NotulenList from './pages/NotulenList';
 import ActionItems from './pages/ActionItems';
 import Users from './pages/Users';
 import Settings from './pages/Settings';
+import NotulenDetail from './pages/NotulenDetail';
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
-
-        <Route
-          path="/"
-          element={
-            <DashboardLayout title="Dashboard" activePath="/">
-              <Dashboard />
-            </DashboardLayout>
-          }
-        />
-        <Route
-          path="/notulen"
-          element={
-            <DashboardLayout title="Notulen" activePath="/notulen">
-              <NotulenList />
-            </DashboardLayout>
-          }
-        />
-        <Route
-          path="/action-items"
-          element={
-            <DashboardLayout title="Action Items" activePath="/action-items">
-              <ActionItems />
-            </DashboardLayout>
-          }
-        />
-        <Route
-          path="/users"
-          element={
-            <DashboardLayout title="User Management" activePath="/users">
-              <Users />
-            </DashboardLayout>
-          }
-        />
-        <Route
-          path="/settings"
-          element={
-            <DashboardLayout title="Pengaturan" activePath="/settings">
-              <Settings />
-            </DashboardLayout>
-          }
-        />
-
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="/" element={<DashboardLayout title="Dashboard"><Dashboard /></DashboardLayout>} />
+        <Route path="/notulen" element={<DashboardLayout title="Notulen"><NotulenList /></DashboardLayout>} />
+        <Route path="/notulen/:id" element={<DashboardLayout title="Detail Notulen"><NotulenDetail /></DashboardLayout>} />
+        <Route path="/action-items" element={<DashboardLayout title="Action Items"><ActionItems /></DashboardLayout>} />
+        <Route path="/users" element={<DashboardLayout title="User Management"><Users /></DashboardLayout>} />
+        <Route path="/settings/:tab" element={<DashboardLayout title="Pengaturan"><Settings /></DashboardLayout>} />
+        <Route path="/settings" element={<Navigate to="/settings/profil" replace />} />
       </Routes>
     </BrowserRouter>
   );
