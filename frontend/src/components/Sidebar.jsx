@@ -3,7 +3,8 @@ import {
   LayoutDashboard, FileText, CheckSquare, Users, Settings,
   LogOut, ChevronDown, User, Lock, Bell,
 } from 'lucide-react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
@@ -24,9 +25,18 @@ const navItems = [
 
 export default function Sidebar() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { logout, isAdmin } = useAuth();
   const [expanded, setExpanded] = useState(
     location.pathname.startsWith('/settings') ? 'Pengaturan' : null
   );
+
+  const visibleNavItems = navItems.filter((item) => item.path !== '/users' || isAdmin);
+
+  async function handleLogout() {
+    await logout();
+    navigate('/login', { replace: true });
+  }
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-60 bg-[#0f2557] flex flex-col">
@@ -37,7 +47,7 @@ export default function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 py-3 overflow-y-auto">
-        {navItems.map((item) => {
+        {visibleNavItems.map((item) => {
           const Icon = item.icon;
           const hasChildren = !!item.children;
           const isParentActive = location.pathname.startsWith(item.path);
@@ -109,7 +119,10 @@ export default function Sidebar() {
 
       {/* Footer */}
       <div className="border-t border-white/10 p-4">
-        <button className="flex items-center gap-2 text-blue-200/60 hover:text-white text-xs w-full">
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-2 text-blue-200/60 hover:text-white text-xs w-full"
+        >
           <LogOut size={15} strokeWidth={1.75} />
           Keluar
         </button>
