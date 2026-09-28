@@ -55,3 +55,27 @@ export async function exportMeetingPdf(id, filename = 'notulen.pdf') {
   link.remove();
   window.URL.revokeObjectURL(url);
 }
+
+export async function uploadAttachment(meetingId, file, fileType) {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('file_type', fileType);
+
+  const { data } = await api.post(`/meetings/${meetingId}/attachments`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return data;
+}
+
+export async function deleteAttachment(meetingId, attachmentId) {
+  await api.delete(`/meetings/${meetingId}/attachments/${attachmentId}`);
+}
+
+export async function addAttendee(meetingId, attendee) {
+  const { data } = await api.post(`/meetings/${meetingId}/attendees`, attendee);
+  return data;
+}
+
+export async function removeAttendee(meetingId, attendeeId) {
+  await api.delete(`/meetings/${meetingId}/attendees/${attendeeId}`);
+}

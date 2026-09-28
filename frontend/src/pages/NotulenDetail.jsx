@@ -235,16 +235,56 @@ export default function NotulenDetail() {
           )}
         </div>
 
+
         <div className="p-5">
           <h3 className="text-sm font-semibold text-gray-800 mb-2">Daftar Hadir</h3>
           {!meeting.attendees || meeting.attendees.length === 0 ? (
             <p className="text-sm text-gray-400">Belum ada data daftar hadir.</p>
           ) : (
-            <div className="space-y-1">
-              {meeting.attendees.map((a) => (
-                <p key={a.id} className="text-sm text-gray-600">
-                  {a.user?.full_name || a.external_name} — {a.user?.division || a.external_org || '-'}
-                </p>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-gray-500 text-left border-b border-gray-100">
+                  <th className="py-2 font-medium">Nama</th>
+                  <th className="py-2 font-medium">Divisi</th>
+                  <th className="py-2 font-medium">Kehadiran</th>
+                </tr>
+              </thead>
+              <tbody>
+                {meeting.attendees.map((a) => (
+                  <tr key={a.id} className="border-b border-gray-50">
+                    <td className="py-2 text-gray-700">{a.name}</td>
+                    <td className="py-2 text-gray-500">{a.division || '-'}</td>
+                    <td className="py-2">
+                      <span className={`text-xs px-2 py-0.5 rounded ${a.is_present ? 'bg-green-50 text-green-700' : 'bg-gray-50 text-gray-500'}`}>
+                        {a.is_present ? 'Hadir' : 'Tidak Hadir'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        <div className="p-5">
+          <h3 className="text-sm font-semibold text-gray-800 mb-2">Lampiran</h3>
+          {!meeting.attachments || meeting.attachments.length === 0 ? (
+            <p className="text-sm text-gray-400">Belum ada file terlampir.</p>
+          ) : (
+            <div className="space-y-2">
+              {meeting.attachments.map((att) => (
+                <a
+                  key={att.id}
+                  href={att.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center justify-between text-sm bg-gray-50 rounded px-3 py-2 hover:bg-gray-100"
+                >
+                  <span className="text-blue-600">{att.file_type}</span>
+                  <span className="text-gray-400 text-xs">
+                    {new Date(att.uploaded_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </span>
+                </a>
               ))}
             </div>
           )}
@@ -258,7 +298,10 @@ function Section({ title, content }) {
   return (
     <div className="p-5">
       <h3 className="text-sm font-semibold text-gray-800 mb-2">{title}</h3>
-      <p className="text-sm text-gray-600 leading-relaxed">{content}</p>
+      <div
+        className="text-sm text-gray-600 leading-relaxed prose-sm max-w-none"
+        dangerouslySetInnerHTML={{ __html: content || '' }}
+      />
     </div>
   );
 }

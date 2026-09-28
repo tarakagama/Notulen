@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 
 class MeetingAttachment extends Model
@@ -18,11 +19,18 @@ class MeetingAttachment extends Model
         'uploaded_at',
     ];
 
+    protected $appends = ['url'];
+
     protected function casts(): array
     {
         return [
             'uploaded_at' => 'datetime',
         ];
+    }
+
+    public function url(): Attribute
+    {
+        return Attribute::get(fn () => \Illuminate\Support\Facades\Storage::disk('public')->url($this->file_path));
     }
 
     public function meeting()

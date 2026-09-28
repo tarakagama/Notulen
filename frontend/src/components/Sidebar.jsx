@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   LayoutDashboard, FileText, CheckSquare, Users, Settings,
-  LogOut, ChevronDown, User, Lock, Bell,
+  LogOut, ChevronDown, User, Lock, Bell, Printer
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -10,6 +10,7 @@ const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
   { icon: FileText, label: 'Notulen', path: '/notulen' },
   { icon: CheckSquare, label: 'Action Items', path: '/action-items' },
+  { icon: Printer, label: 'Cetak Daftar Hadir', path: '/cetak-daftar-hadir' },
   { icon: Users, label: 'User Management', path: '/users' },
   {
     icon: Settings,

@@ -10,30 +10,18 @@ class MeetingAttendee extends Model
 
     protected $fillable = [
         'meeting_id',
-        'user_id',
-        'external_name',
-        'external_org',
-        'role_in_meeting',
-        'is_signed',
+        'name',
+        'division',
+        'is_present',
     ];
 
     protected function casts(): array
     {
-        return [
-            'is_signed' => 'boolean',
-        ];
+        return ['is_present' => 'boolean'];
     }
 
     public function meeting()
     {
         return $this->belongsTo(Meeting::class);
-    }
-
-    /**
-     * Null kalau attendee eksternal (bukan user internal).
-     */
-    public function user()
-    {
-        return $this->belongsTo(User::class);
     }
 }

@@ -58,7 +58,7 @@ class MeetingController extends Controller
         return $meeting->load([
             'notulis',
             'approver',
-            'attendees.user',
+            'attendees',
             'discussionNotes.childNotesRecursive',
             'actionItems.pic',
             'attachments',

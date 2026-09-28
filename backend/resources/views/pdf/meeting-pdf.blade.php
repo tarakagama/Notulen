@@ -191,6 +191,40 @@
             display: inline-block;
             min-width: 170px;
         }
+
+        /* ── Nested numbering: 1. → a) → i) — sama kayak di editor & detail ── */
+        .manual-content ol {
+            list-style: none;
+            padding-left: 20px;
+            counter-reset: level1;
+        }
+        .manual-content ol > li {
+            counter-increment: level1;
+            position: relative;
+        }
+        .manual-content ol > li::before {
+            content: counter(level1) ". ";
+            position: absolute;
+            left: -20px;
+        }
+        .manual-content ol ol {
+            counter-reset: level2;
+        }
+        .manual-content ol ol > li {
+            counter-increment: level2;
+        }
+        .manual-content ol ol > li::before {
+            content: counter(level2, lower-alpha) ") ";
+        }
+        .manual-content ol ol ol {
+            counter-reset: level3;
+        }
+        .manual-content ol ol ol > li {
+            counter-increment: level3;
+        }
+        .manual-content ol ol ol > li::before {
+            content: counter(level3, lower-roman) ") ";
+        }
     </style>
 </head>
 <body>
@@ -228,32 +262,22 @@
         </tr>
     </table>
 
-    @php
-        // Pecah teks paragraf jadi list bernomor kalau ada multi-baris,
-        // meniru gaya penomoran "A. LATAR BELAKANG / C. KESEPAKATAN" di
-        // template asli. Kalau cuma 1 baris, tampilkan sebagai paragraf biasa.
-        if (! function_exists('renderAsNumberedOrParagraph')) {
-            function renderAsNumberedOrParagraph($text) {
-                $lines = array_values(array_filter(array_map('trim', explode("\n", $text ?? ''))));
-                if (count($lines) > 1) {
-                    echo '<ol class="numbered-list">';
-                    foreach ($lines as $line) {
-                        echo '<li>' . e($line) . '</li>';
-                    }
-                    echo '</ol>';
-                } else {
-                    echo '<p class="plain-paragraph">' . e($text) . '</p>';
-                }
-            }
-        }
-    @endphp
-
     @if ($meeting->background)
         <div class="section-heading">A. LATAR BELAKANG</div>
-        {!! renderAsNumberedOrParagraph($meeting->background) !!}
+        <div class="manual-content">{!! $meeting->background !!}</div>
     @endif
 
-    <div class="section-heading">{{ $meeting->background ? 'B' : 'A' }}. PEMBAHASAN</div>
+    @php
+        $sectionLetter = 'A';
+        if ($meeting->background) $sectionLetter++;
+        $pembahasanLetter = $sectionLetter;
+        $sectionLetter++;
+        $kesepakatanLetter = $sectionLetter;
+        if ($meeting->conclusion) $sectionLetter++;
+        $daftarHadirLetter = $sectionLetter;
+    @endphp
+
+    <div class="section-heading">{{ $pembahasanLetter }}. PEMBAHASAN</div>
     @if ($meeting->discussion_mode === 'manual')
         <div class="manual-content">{!! $meeting->discussion_manual_content !!}</div>
     @elseif ($meeting->discussionNotes->isEmpty())
@@ -263,68 +287,86 @@
     @endif
 
     @if ($meeting->conclusion)
-        <div class="section-heading">{{ $meeting->background ? 'C' : 'B' }}. KESEPAKATAN DAN TINDAK LANJUT</div>
-        {!! renderAsNumberedOrParagraph($meeting->conclusion) !!}
+        <div class="section-heading">{{ $kesepakatanLetter }}. KESEPAKATAN DAN TINDAK LANJUT</div>
+        <div class="manual-content">{!! $meeting->conclusion !!}</div>
     @endif
 
-    @if ($meeting->actionItems->isNotEmpty())
-        <div class="section-heading">Rincian Tindak Lanjut (Action Items)</div>
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th style="width: 38%;">Deskripsi</th>
-                    <th style="width: 20%;">PIC</th>
-                    <th style="width: 15%;">Deadline</th>
-                    <th style="width: 12%;">Prioritas</th>
-                    <th style="width: 15%;">Status</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach ($meeting->actionItems as $item)
-                    <tr>
-                        <td>{{ $item->description }}</td>
-                        <td>{{ $item->pic->full_name ?? '-' }}</td>
-                        <td>{{ \Carbon\Carbon::parse($item->deadline)->translatedFormat('d M Y') }}</td>
-                        <td class="priority-{{ strtolower($item->priority) }}">{{ $item->priority }}</td>
-                        <td>{{ $item->status }}</td>
-                    </tr>
-                @endforeach
-            </tbody>
-        </table>
-    @endif
-
-    <div class="section-heading">D. DAFTAR HADIR</div>
+    <div class="section-heading">{{ $daftarHadirLetter }}. DAFTAR HADIR</div>
     @if ($meeting->attendees->isEmpty())
         <p class="empty-state">Tidak ada data daftar hadir digital. Kemungkinan daftar hadir fisik terlampir terpisah (lihat Lampiran).</p>
     @else
         <table class="attendance-table">
             <thead>
                 <tr>
-                    <th style="width: 6%;">NO</th>
-                    <th style="width: 27%;">NAMA</th>
-                    <th style="width: 22%;">DIVISI/INSTANSI</th>
-                    <th style="width: 25%;">PERAN</th>
-                    <th style="width: 20%;">TTD</th>
+                    <th style="width: 8%;">NO</th>
+                    <th style="width: 32%;">NAMA</th>
+                    <th style="width: 30%;">DIVISI/INSTANSI</th>
+                    <th style="width: 15%;">HADIR</th>
+                    <th style="width: 15%;">TTD</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach ($meeting->attendees as $i => $attendee)
                     <tr>
                         <td>{{ $i + 1 }}</td>
-                        <td>{{ $attendee->user->full_name ?? $attendee->external_name }}</td>
-                        <td>{{ $attendee->user->division ?? $attendee->external_org ?? '-' }}</td>
-                        <td>{{ $attendee->role_in_meeting ?? '-' }}</td>
-                        <td>
-                            @if ($attendee->is_signed)
-                                <span class="ttd-confirmed">&#10003; Terkonfirmasi</span>
-                            @else
-                                <span class="ttd-blank">(tanda tangan manual)</span>
-                            @endif
-                        </td>
+                        <td>{{ $attendee->name }}</td>
+                        <td>{{ $attendee->division ?? '-' }}</td>
+                        <td>{{ $attendee->is_present ? 'Hadir' : 'Tidak Hadir' }}</td>
+                        <td></td>
                     </tr>
                 @endforeach
             </tbody>
         </table>
+    @endif
+
+    @if ($meeting->attachments->isNotEmpty())
+        <div style="page-break-before: always;"></div>
+        <div class="section-heading">LAMPIRAN</div>
+
+        @php
+            $imageAttachments = $meeting->attachments->filter(function ($att) {
+                $ext = strtolower(pathinfo($att->file_path, PATHINFO_EXTENSION));
+                return in_array($ext, ['jpg', 'jpeg', 'png']);
+            })->take(4);
+
+            $nonImageAttachments = $meeting->attachments->reject(function ($att) {
+                $ext = strtolower(pathinfo($att->file_path, PATHINFO_EXTENSION));
+                return in_array($ext, ['jpg', 'jpeg', 'png']);
+            });
+        @endphp
+
+        @foreach ($imageAttachments->chunk(2) as $pair)
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 10px;">
+                <tr>
+                    @foreach ($pair as $attachment)
+                        @php $fullPath = storage_path('app/public/' . $attachment->file_path); @endphp
+                        <td style="width: 50%; padding: 5px; vertical-align: top; text-align: center;">
+                            <p style="margin: 0 0 4px 0; font-size: 9px; font-weight: bold;">
+                                {{ $attachment->file_type }}
+                                <br>
+                                <span style="font-weight: normal; color: #777;">
+                                    {{ \Carbon\Carbon::parse($attachment->uploaded_at)->translatedFormat('d M Y, H:i') }}
+                                </span>
+                            </p>
+                            @if (file_exists($fullPath))
+                                <img src="{{ $fullPath }}" style="width: 100%; max-height: 340px; object-fit: contain; border: 1px solid #ccc;">
+                            @endif
+                        </td>
+                    @endforeach
+                    @if ($pair->count() === 1)
+                        <td style="width: 50%;"></td>
+                    @endif
+                </tr>
+            </table>
+        @endforeach
+
+        @foreach ($nonImageAttachments as $attachment)
+            <p style="margin: 0 0 4px 0; font-size: 10px;">
+                <strong>{{ $attachment->file_type }}</strong>
+                ({{ \Carbon\Carbon::parse($attachment->uploaded_at)->translatedFormat('d M Y, H:i') }})
+                — File PDF/dokumen, dapat diunduh langsung dari sistem MoMHub.
+            </p>
+        @endforeach
     @endif
 
     <table class="signature-block">

@@ -7,7 +7,9 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DiscussionFormalizationController;
 use App\Http\Controllers\MeetingController;
 use App\Http\Controllers\MeetingExportController;
+use App\Http\Controllers\MeetingAttachmentController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\AttendeeController;
 use Illuminate\Support\Facades\Route;
 
 // ── Auth (publik, tanpa login) ────────────────────────────────────────
@@ -45,6 +47,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/meetings/{meeting}/reject', [MeetingController::class, 'reject']);
     Route::get('/meetings/{meeting}/export', [MeetingExportController::class, 'export']);
 
+    // ── Lampiran (foto/scan daftar hadir) ──────────────────────────────
+    Route::post('/meetings/{meeting}/attachments', [MeetingAttachmentController::class, 'store']);
+    Route::delete('/meetings/{meeting}/attachments/{attachment}', [MeetingAttachmentController::class, 'destroy']);
+
     // ── AI: auto-extract action item & formalisasi Pembahasan (FR-6.x) ─
     Route::post('/meetings/{meeting}/extract-action-items', [ActionItemExtractionController::class, 'extract']);
     Route::post('/meetings/{meeting}/accept-suggestion', [ActionItemExtractionController::class, 'accept']);
@@ -59,4 +65,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // ── Executive Dashboard (FR-3.1-3.3) ───────────────────────────────
     Route::get('/dashboard/summary', [DashboardController::class, 'summary']);
     Route::get('/dashboard/top-overdue', [DashboardController::class, 'topOverdue']);
+
+    // ── Attendees (FR-1.3) ─────────────────────────────────────────────
+    Route::post('/meetings/{meeting}/attendees', [AttendeeController::class, 'store']);
+    Route::delete('/meetings/{meeting}/attendees/{attendee}', [AttendeeController::class, 'destroy']);
 });

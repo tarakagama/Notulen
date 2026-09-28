@@ -11,6 +11,7 @@ import Users from './pages/Users';
 import Settings from './pages/Settings';
 import NotulenDetail from './pages/NotulenDetail';
 import NotulenEditor from './pages/NotulenEditor';
+import CetakDaftarHadir from './pages/CetakDaftarHadir';
 
 export default function App() {
   return (
@@ -25,6 +26,7 @@ export default function App() {
             <Route path="/notulen/baru" element={<DashboardLayout title="Buat Notulen"><NotulenEditor /></DashboardLayout>} />
             <Route path="/notulen/:id" element={<DashboardLayout title="Detail Notulen"><NotulenDetail /></DashboardLayout>} /> 
             <Route path="/notulen/:id/edit" element={<DashboardLayout title="Edit Notulen"><NotulenEditor /></DashboardLayout>} />
+            <Route path="/cetak-daftar-hadir" element={<DashboardLayout title="Cetak Daftar Hadir"><CetakDaftarHadir /></DashboardLayout>} />
             <Route path="/action-items" element={<DashboardLayout title="Action Items"><ActionItems /></DashboardLayout>} />
             <Route path="/users" element={<DashboardLayout title="User Management"><Users /></DashboardLayout>} />
             <Route path="/settings/:tab" element={<DashboardLayout title="Pengaturan"><Settings /></DashboardLayout>} />

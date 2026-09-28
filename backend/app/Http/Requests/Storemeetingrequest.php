@@ -29,14 +29,11 @@ class StoreMeetingRequest extends FormRequest
             'discussion_manual_content' => ['nullable', 'string'],
             'approver_id' => ['nullable', 'exists:users,id'],
 
-            // ── Daftar hadir (FR-1.2) ────────────────────────────────
-            // internal: user_id diisi, external: external_name diisi
+            // ── Daftar hadir (FR-1.2, disederhanakan) ────────────────
             'attendees' => ['nullable', 'array'],
-            'attendees.*.user_id' => ['nullable', 'exists:users,id', 'required_without:attendees.*.external_name'],
-            'attendees.*.external_name' => ['nullable', 'string', 'max:150', 'required_without:attendees.*.user_id'],
-            'attendees.*.external_org' => ['nullable', 'string', 'max:150'],
-            'attendees.*.role_in_meeting' => ['nullable', 'string', 'max:100'],
-            'attendees.*.is_signed' => ['nullable', 'boolean'],
+            'attendees.*.name' => ['required', 'string', 'max:150'],
+            'attendees.*.division' => ['nullable', 'string', 'max:150'],
+            'attendees.*.is_present' => ['nullable', 'boolean'],
 
             // ── Pembahasan nested (FR-1.3, FR-1.4) ───────────────────
             // parent_note_id di sini adalah TEMP_ID (string) dari note lain
@@ -65,8 +62,6 @@ class StoreMeetingRequest extends FormRequest
         return [
             'end_time.after' => 'Waktu selesai harus setelah waktu mulai.',
             'action_items.*.deadline.after_or_equal' => 'Deadline tidak boleh di masa lalu.',
-            'attendees.*.user_id.required_without' => 'Isi salah satu: user internal atau nama eksternal.',
-            'attendees.*.external_name.required_without' => 'Isi salah satu: user internal atau nama eksternal.',
         ];
     }
 }
