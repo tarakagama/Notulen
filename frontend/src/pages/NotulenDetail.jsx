@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Calendar, MapPin, User, Edit, Download, Send, Check, X } from 'lucide-react';
-import { getMeeting, submitMeeting, approveMeeting, rejectMeeting, exportMeetingPdf } from '../api/meetings';
+import { getMeeting, submitMeeting, approveMeeting, rejectMeeting, exportMeetingPdf, deleteMeeting } from '../api/meetings';
 import { useAuth } from '../context/AuthContext';
 import { meetingStatusLabel } from '../lib/statuslabels';
+import { Trash2 } from 'lucide-react';
 
 const statusStyle = {
   Draft: 'bg-yellow-50 text-yellow-700',
@@ -42,6 +43,7 @@ export default function NotulenDetail() {
   const canSubmit = isOwner && meeting?.status === 'Draft';
   const canApprove = isApprover && meeting?.status === 'Waiting Approval';
   const canExport = meeting?.status === 'Approved';
+  const canDelete = user?.is_admin;
 
   async function handleSubmit() {
     setActionLoading(true);
@@ -91,6 +93,21 @@ export default function NotulenDetail() {
       setActionLoading(false);
     }
   }
+
+  async function handleDelete() {
+  const ok = window.confirm(
+    `Hapus notulen "${meeting.meeting_title}"?\n\nSemua daftar hadir, lampiran, dan action item terkait ikut terhapus. Tindakan ini tidak bisa dibatalkan.`
+  );
+  if (!ok) return;
+  setActionLoading(true);
+  try {
+    await deleteMeeting(meeting.id);
+    navigate('/notulen');
+  } catch (err) {
+    setError(err.response?.data?.message || 'Gagal menghapus notulen.');
+    setActionLoading(false);
+  }
+}
 
   if (loading) return <p className="text-sm text-gray-400">Memuat...</p>;
   if (error && !meeting) return <p className="text-sm text-red-500">{error}</p>;
@@ -155,6 +172,17 @@ export default function NotulenDetail() {
             >
               <Download size={15} strokeWidth={1.75} />
               {actionLoading ? 'Memproses...' : 'Export PDF'}
+            </button>
+          )}
+
+          {canDelete && (
+            <button
+              onClick={handleDelete}
+              disabled={actionLoading}
+              className="flex items-center gap-2 text-sm text-red-600 border border-red-300 rounded px-4 py-2 hover:bg-red-50 disabled:opacity-50"
+            >
+              <Trash2 size={15} strokeWidth={1.75} />
+              Hapus
             </button>
           )}
         </div>

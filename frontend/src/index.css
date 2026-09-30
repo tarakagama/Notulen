@@ -63,26 +63,16 @@ body {
   background: var(--bg);
 }
 
-h1,
-h2,
-h3 {
-  font-family: var(--sans);
-  font-weight: 600;
-  color: var(--text-h);
-  margin: 0;
-}
-
-h1 {
-  font-size: 20px;
-  letter-spacing: -0.2px;
-}
-
-h2 {
-  font-size: 16px;
-}
-
-h3 {
-  font-size: 14px;
+@layer base {
+  h1, h2, h3 {
+    font-family: var(--sans);
+    font-weight: 600;
+    color: var(--text-h);
+    margin: 0;
+  }
+  h1 { font-size: 20px; letter-spacing: -0.2px; }
+  h2 { font-size: 16px; }
+  h3 { font-size: 14px; }
 }
 
 p {

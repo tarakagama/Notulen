@@ -59,9 +59,11 @@ class ActionItemController extends Controller
     {
         $data = $request->validated();
 
-        if ($data['status'] === 'Completed') {
-            $data['completed_at'] = now();
-        }
+            if ($data['status'] === 'Completed') {
+                $data['completed_at'] = now();
+            } else {
+                $data['completed_at'] = null;
+            }
 
         $actionItem->update($data);
 

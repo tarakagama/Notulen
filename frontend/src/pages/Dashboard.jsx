@@ -1,55 +1,158 @@
-const stats = [
-  { label: 'Total Notulen', value: '48', delta: '+12%' },
-  { label: 'Action Items Aktif', value: '23', delta: '+5' },
-  { label: 'Menunggu Approval', value: '7', delta: '-2' },
-  { label: 'Selesai Bulan Ini', value: '31', delta: '+18%' },
-];
+import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { FileText, Hourglass, ListChecks, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { fetchDashboardSummary, fetchTopOverdue } from '../api/dashboard';
+import { listMeetings } from '../api/meetings';
+import { meetingStatusLabel } from '../lib/statuslabels';
+import MeetingCalendar from '../components/MeetingCalendar';
+
+const STATUS_STYLE = {
+  Draft: 'bg-yellow-50 text-yellow-700',
+  'Waiting Approval': 'bg-blue-50 text-blue-700',
+  Approved: 'bg-green-50 text-green-700',
+  Rejected: 'bg-red-50 text-red-700',
+};
+
+function formatDate(iso) {
+  if (!iso) return '-';
+  return new Date(iso).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+}
 
 export default function Dashboard() {
+  const [summary, setSummary] = useState(null);
+  const [overdue, setOverdue] = useState([]);
+  const [recent, setRecent] = useState([]);
+  const [totalMeetings, setTotalMeetings] = useState(0);
+  const [waitingCount, setWaitingCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    Promise.all([
+      fetchDashboardSummary(),
+      fetchTopOverdue(),
+      listMeetings({ per_page: 5 }),
+      listMeetings({ status: 'Waiting Approval', per_page: 1 }),
+    ])
+      .then(([sum, top, meetings, waiting]) => {
+        setSummary(sum);
+        setOverdue(Array.isArray(top) ? top : top.data || []);
+        setRecent(meetings.data || []);
+        setTotalMeetings(meetings.total ?? 0);
+        setWaitingCount(waiting.total ?? 0);
+      })
+      .catch(() => setError('Gagal memuat data dashboard.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <p className="text-sm text-gray-400">Memuat dashboard...</p>;
+  if (error) return <p className="text-sm text-red-600">{error}</p>;
+
+  const active = (summary?.open ?? 0) + (summary?.in_progress ?? 0);
+  const total = summary?.total ?? 0;
+  const completed = summary?.completed ?? 0;
+  const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+  const stats = [
+    { label: 'Total Notulen', value: totalMeetings, icon: FileText, color: 'text-[#0f2557]' },
+    { label: 'Menunggu Approval', value: waitingCount, icon: Hourglass, color: 'text-blue-600' },
+    { label: 'Action Item Aktif', value: active, icon: ListChecks, color: 'text-yellow-600' },
+    { label: 'Terlambat', value: summary?.overdue ?? 0, icon: AlertTriangle, color: 'text-red-600' },
+    { label: 'Selesai', value: completed, icon: CheckCircle2, color: 'text-green-600' },
+  ];
+
   return (
-    <>
-      {/* Stat cards — full width grid */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        {stats.map((s) => (
-          <div key={s.label} className="bg-white border border-gray-200 rounded p-4">
-            <p className="text-xs text-gray-500 mb-1">{s.label}</p>
-            <div className="flex items-end justify-between">
-              <span className="text-2xl font-semibold text-gray-900">{s.value}</span>
-              <span className="text-xs text-green-600">{s.delta}</span>
+    <div className="space-y-6">
+      {/* Kartu statistik */}
+      <div className="grid grid-cols-5 gap-4">
+        {stats.map(({ label, value, icon: Icon, color }) => (
+          <div key={label} className="bg-white border border-gray-200 rounded p-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs text-gray-500">{label}</p>
+              <Icon size={16} strokeWidth={1.75} className={color} />
             </div>
+            <span className="text-2xl font-semibold text-gray-900">{value}</span>
           </div>
         ))}
       </div>
 
-      {/* Table — full width */}
-      <div className="bg-white border border-gray-200 rounded">
-        <div className="px-4 py-3 border-b border-gray-200 flex justify-between items-center">
-          <h2 className="text-sm font-semibold text-gray-800">Notulen Terbaru</h2>
-          <button className="text-xs text-blue-600 hover:underline">Lihat Semua</button>
+      {/* Progres action item */}
+      <div className="bg-white border border-gray-200 rounded p-4">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-sm font-semibold text-gray-800">Progres Action Item</h2>
+          <span className="text-xs text-gray-500">
+            {completed} dari {total} selesai ({completionRate}%)
+          </span>
         </div>
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="border-b border-gray-100 text-gray-500 text-left">
-              <th className="px-4 py-2 font-medium">Judul Rapat</th>
-              <th className="px-4 py-2 font-medium">Tanggal</th>
-              <th className="px-4 py-2 font-medium">Notulis</th>
-              <th className="px-4 py-2 font-medium">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {[1, 2, 3].map((i) => (
-              <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
-                <td className="px-4 py-2.5 text-gray-800">Rapat Koordinasi Divisi IT #{i}</td>
-                <td className="px-4 py-2.5 text-gray-500">12 Sep 2026</td>
-                <td className="px-4 py-2.5 text-gray-500">Taraka</td>
-                <td className="px-4 py-2.5">
-                  <span className="px-2 py-0.5 bg-yellow-50 text-yellow-700 rounded text-[11px]">Draft</span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="h-2 bg-gray-100 rounded overflow-hidden">
+          <div className="h-full bg-green-600" style={{ width: `${completionRate}%` }} />
+        </div>
       </div>
-    </>
+      <MeetingCalendar />
+      <div className="grid grid-cols-3 gap-6">
+        {/* Notulen terbaru */}
+        <div className="col-span-2 bg-white border border-gray-200 rounded">
+          <div className="px-4 py-3 border-b border-gray-200 flex justify-between items-center">
+            <h2 className="text-sm font-semibold text-gray-800">Notulen Terbaru</h2>
+            <Link to="/notulen" className="text-xs text-blue-600 hover:underline">Lihat Semua</Link>
+          </div>
+          {recent.length === 0 ? (
+            <p className="text-sm text-gray-400 p-4">Belum ada notulen.</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 text-gray-500 text-left text-xs">
+                  <th className="px-4 py-2 font-medium">Judul Rapat</th>
+                  <th className="px-4 py-2 font-medium">Tanggal</th>
+                  <th className="px-4 py-2 font-medium">Notulis</th>
+                  <th className="px-4 py-2 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recent.map((m) => (
+                  <tr key={m.id} className="border-b border-gray-50 hover:bg-gray-50">
+                    <td className="px-4 py-2.5">
+                      <Link to={`/notulen/${m.id}`} className="text-gray-800 hover:text-blue-600">
+                        {m.meeting_title}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-2.5 text-gray-500">{formatDate(m.meeting_date)}</td>
+                    <td className="px-4 py-2.5 text-gray-500">{m.notulis?.full_name || '-'}</td>
+                    <td className="px-4 py-2.5">
+                      <span className={`px-2 py-0.5 rounded text-xs ${STATUS_STYLE[m.status] || 'bg-gray-50 text-gray-600'}`}>
+                        {meetingStatusLabel(m.status)}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Top overdue */}
+        <div className="bg-white border border-gray-200 rounded">
+          <div className="px-4 py-3 border-b border-gray-200 flex justify-between items-center">
+            <h2 className="text-sm font-semibold text-gray-800">Paling Terlambat</h2>
+            <Link to="/action-items" className="text-xs text-blue-600 hover:underline">Lihat Semua</Link>
+          </div>
+          {overdue.length === 0 ? (
+            <p className="text-sm text-gray-400 p-4">Tidak ada tugas yang terlambat.</p>
+          ) : (
+            <div className="divide-y divide-gray-50">
+              {overdue.map((item) => (
+                <div key={item.id} className="px-4 py-3">
+                  <p className="text-sm text-gray-800">{item.description}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {item.pic?.full_name || '-'} · deadline{' '}
+                    <span className="text-red-600">{formatDate(item.deadline)}</span>
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }

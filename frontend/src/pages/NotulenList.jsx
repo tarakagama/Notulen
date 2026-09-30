@@ -5,9 +5,9 @@ import { listMeetings } from '../api/meetings';
 
 const statusStyle = {
   Draft: 'bg-yellow-50 text-yellow-700',
-  'Menunggu Approval': 'bg-blue-50 text-blue-700',
-  Disetujui: 'bg-green-50 text-green-700',
-  Ditolak: 'bg-red-50 text-red-700',
+  'Waiting Approval': 'bg-blue-50 text-blue-700',
+  Approved: 'bg-green-50 text-green-700',
+  Rejected: 'bg-red-50 text-red-700',
 };
 
 function formatDate(isoString) {

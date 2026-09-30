@@ -1,81 +1,174 @@
 import { useState, useEffect } from 'react';
-import { Search, Filter, CheckCircle2, Circle, Clock } from 'lucide-react';
-import api from '../api/client';
+import { CheckCircle2, Circle, Clock, RotateCcw } from 'lucide-react';
+import { listMyTasks, updateActionItemStatus } from '../api/actionItems';
 
-const statusConfig = {
-  'Not Started': { style: 'bg-gray-50 text-gray-600', icon: Circle, label: 'Belum Mulai' },
-  'In Progress': { style: 'bg-blue-50 text-blue-700', icon: Clock, label: 'Berjalan' },
-  Completed: { style: 'bg-green-50 text-green-700', icon: CheckCircle2, label: 'Selesai' },
-  Overdue: { style: 'bg-red-50 text-red-700', icon: Clock, label: 'Terlambat' },
+const PRIORITY_STYLE = {
+  High: 'bg-red-50 text-red-700',
+  Medium: 'bg-yellow-50 text-yellow-700',
+  Low: 'bg-gray-50 text-gray-600',
 };
+
+function formatDate(iso) {
+  if (!iso) return '-';
+  return new Date(iso).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+}
 
 export default function ActionItems() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [busyId, setBusyId] = useState(null);
 
-  useEffect(() => {
-    api.get('/my-tasks')
-      .then((res) => setItems(res.data.data || res.data))
+  const load = () => {
+    setLoading(true);
+    listMyTasks()
+      .then((res) => setItems(res.data || res))
       .catch(() => setError('Gagal memuat daftar action items.'))
       .finally(() => setLoading(false));
-  }, []);
+  };
 
-  const counts = items.reduce((acc, item) => {
-    acc[item.status] = (acc[item.status] || 0) + 1;
-    return acc;
-  }, {});
+  useEffect(() => { load(); }, []);
+
+  const changeStatus = async (item, status, completion_note = null) => {
+    setBusyId(item.id);
+    setError('');
+    try {
+      await updateActionItemStatus(item.id, { status, completion_note });
+      load();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Gagal mengubah status.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleComplete = (item) => {
+    const note = window.prompt('Catatan penyelesaian (opsional):', '');
+    if (note === null) return; // user klik Cancel
+    changeStatus(item, 'Completed', note.trim() || null);
+  };
+
+  const active = items.filter((i) => i.status !== 'Completed');
+  const done = items.filter((i) => i.status === 'Completed');
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-4 gap-4">
-        {Object.entries(statusConfig).map(([key, cfg]) => (
-          <div key={key} className="bg-white border border-gray-200 rounded p-4">
-            <p className="text-sm text-gray-500 mb-1">{cfg.label}</p>
-            <span className="text-2xl font-semibold text-gray-800">{counts[key] || 0}</span>
-          </div>
-        ))}
-      </div>
+    <div className="space-y-6">
+      {error && (
+        <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded px-4 py-2.5">{error}</div>
+      )}
 
+      {/* Aktif */}
       <div className="bg-white border border-gray-200 rounded">
+        <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-gray-800">Tugas Aktif</h2>
+          <span className="text-xs text-gray-400">{active.length} tugas</span>
+        </div>
+
         {loading ? (
           <p className="text-sm text-gray-400 p-5">Memuat data...</p>
-        ) : error ? (
-          <p className="text-sm text-red-600 p-5">{error}</p>
-        ) : items.length === 0 ? (
-          <p className="text-sm text-gray-400 p-5">Tidak ada action item untuk kamu saat ini.</p>
+        ) : active.length === 0 ? (
+          <p className="text-sm text-gray-400 p-5">Tidak ada tugas aktif. 🎉</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 text-gray-500 text-left">
-                <th className="px-5 py-3.5 font-medium">Action Item</th>
-                <th className="px-5 py-3.5 font-medium">Sumber Rapat</th>
-                <th className="px-5 py-3.5 font-medium">Deadline</th>
-                <th className="px-5 py-3.5 font-medium">Prioritas</th>
-                <th className="px-5 py-3.5 font-medium">Status</th>
+                <th className="px-5 py-3 font-medium">Action Item</th>
+                <th className="px-5 py-3 font-medium">Sumber Rapat</th>
+                <th className="px-5 py-3 font-medium">Deadline</th>
+                <th className="px-5 py-3 font-medium">Prioritas</th>
+                <th className="px-5 py-3 font-medium">Status</th>
+                <th className="px-5 py-3 font-medium text-right">Aksi</th>
               </tr>
             </thead>
             <tbody>
-              {items.map((item) => {
-                const cfg = statusConfig[item.status] || statusConfig['Not Started'];
-                const Icon = cfg.icon;
+              {active.map((item) => {
+                const overdue = item.deadline && new Date(item.deadline) < new Date();
                 return (
                   <tr key={item.id} className="border-b border-gray-50 hover:bg-gray-50">
                     <td className="px-5 py-3.5 text-gray-800 font-medium">{item.description}</td>
                     <td className="px-5 py-3.5 text-gray-500">{item.meeting?.meeting_title || '-'}</td>
-                    <td className="px-5 py-3.5 text-gray-500">
-                      {item.deadline ? new Date(item.deadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
+                    <td className={`px-5 py-3.5 ${overdue ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+                      {formatDate(item.deadline)}{overdue && ' (terlambat)'}
                     </td>
-                    <td className="px-5 py-3.5 text-gray-500">{item.priority}</td>
                     <td className="px-5 py-3.5">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs ${cfg.style}`}>
-                        <Icon size={12} strokeWidth={2} />
-                        {cfg.label}
+                      <span className={`px-2 py-0.5 rounded text-xs ${PRIORITY_STYLE[item.priority] || ''}`}>{item.priority}</span>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <span className="inline-flex items-center gap-1.5 text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded">
+                        {item.status === 'In Progress' ? <Clock size={12} /> : <Circle size={12} />}
+                        {item.status}
                       </span>
+                    </td>
+                    <td className="px-5 py-3.5 text-right whitespace-nowrap">
+                      {item.status === 'Open' && (
+                        <button
+                          onClick={() => changeStatus(item, 'In Progress')}
+                          disabled={busyId === item.id}
+                          className="text-xs text-blue-600 hover:underline mr-3 disabled:opacity-50"
+                        >
+                          Mulai
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleComplete(item)}
+                        disabled={busyId === item.id}
+                        className="text-xs text-white bg-green-600 rounded px-3 py-1.5 hover:bg-green-700 disabled:opacity-50"
+                      >
+                        Tandai Selesai
+                      </button>
                     </td>
                   </tr>
                 );
               })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Selesai */}
+      <div className="bg-white border border-gray-200 rounded">
+        <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-gray-800">Tugas Selesai</h2>
+          <span className="text-xs text-gray-400">{done.length} tugas</span>
+        </div>
+
+        {done.length === 0 ? (
+          <p className="text-sm text-gray-400 p-5">Belum ada tugas yang selesai.</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 text-gray-500 text-left">
+                <th className="px-5 py-3 font-medium">Action Item</th>
+                <th className="px-5 py-3 font-medium">Sumber Rapat</th>
+                <th className="px-5 py-3 font-medium">Selesai Pada</th>
+                <th className="px-5 py-3 font-medium">Catatan</th>
+                <th className="px-5 py-3 font-medium text-right">Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {done.map((item) => (
+                <tr key={item.id} className="border-b border-gray-50">
+                  <td className="px-5 py-3.5 text-gray-500 line-through">{item.description}</td>
+                  <td className="px-5 py-3.5 text-gray-500">{item.meeting?.meeting_title || '-'}</td>
+                  <td className="px-5 py-3.5 text-gray-500">
+                    <span className="inline-flex items-center gap-1.5 text-green-700">
+                      <CheckCircle2 size={13} />
+                      {formatDate(item.completed_at)}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3.5 text-gray-500">{item.completion_note || '-'}</td>
+                  <td className="px-5 py-3.5 text-right">
+                    <button
+                      onClick={() => changeStatus(item, 'Open')}
+                      disabled={busyId === item.id}
+                      className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800 disabled:opacity-50"
+                    >
+                      <RotateCcw size={12} />
+                      Buka kembali
+                    </button>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         )}
