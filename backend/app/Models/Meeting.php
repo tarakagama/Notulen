@@ -25,6 +25,7 @@ class Meeting extends Model
         'notulis_id',
         'approver_id',
         'approved_at',
+        'revision_note',
     ];
 
     protected function casts(): array

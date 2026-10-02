@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Calendar, MapPin, User, Edit, Download, Send, Check, X } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, User, Edit, Download, Send, Check, X, Trash2, AlertTriangle } from 'lucide-react';
 import { getMeeting, submitMeeting, approveMeeting, rejectMeeting, exportMeetingPdf, deleteMeeting } from '../api/meetings';
 import { useAuth } from '../context/AuthContext';
 import { meetingStatusLabel } from '../lib/statuslabels';
-import { Trash2 } from 'lucide-react';
+import Modal from '../components/Modal';
 
 const statusStyle = {
   Draft: 'bg-yellow-50 text-yellow-700',
@@ -22,6 +22,9 @@ export default function NotulenDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [rejectNote, setRejectNote] = useState('');
+  const [revisionOpen, setRevisionOpen] = useState(false);
 
   useEffect(() => {
     load();
@@ -69,12 +72,14 @@ export default function NotulenDetail() {
     }
   }
 
-  async function handleReject() {
-    const note = window.prompt('Catatan revisi untuk Notulis (wajib diisi):');
-    if (!note?.trim()) return;
+  async function submitReject() {
+    if (!rejectNote.trim()) return;
     setActionLoading(true);
+    console.log('DEBUG rejectNote:', JSON.stringify(rejectNote));
     try {
-      await rejectMeeting(meeting.id, note.trim());
+      await rejectMeeting(meeting.id, rejectNote.trim());
+      setRejectOpen(false);
+      setRejectNote('');
       load();
     } catch {
       setError('Gagal menolak notulen.');
@@ -146,7 +151,7 @@ export default function NotulenDetail() {
           {canApprove && (
             <>
               <button
-                onClick={handleReject}
+                onClick={() => setRejectOpen(true)}
                 disabled={actionLoading}
                 className="flex items-center gap-2 text-sm text-red-600 border border-red-300 rounded px-4 py-2 hover:bg-red-50 disabled:opacity-50"
               >
@@ -193,10 +198,13 @@ export default function NotulenDetail() {
       )}
 
       {meeting.revision_note && meeting.status === 'Rejected' && (
-        <div className="bg-red-50 border border-red-200 rounded p-4">
-          <p className="text-sm font-medium text-red-700">Catatan revisi dari approver:</p>
-          <p className="text-sm text-red-600 mt-1">{meeting.revision_note}</p>
-        </div>
+        <button
+          onClick={() => setRevisionOpen(true)}
+          className="text-sm text-red-700 bg-red-50 border border-red-200 rounded px-4 py-2.5 hover:bg-red-100 flex items-center gap-2 w-fit"
+        >
+          <AlertTriangle size={15} />
+          Lihat Catatan Revisi dari Approver
+        </button>
       )}
 
       {/* Header card */}
@@ -256,7 +264,9 @@ export default function NotulenDetail() {
               {meeting.action_items.map((item) => (
                 <div key={item.id} className="flex items-center justify-between text-sm border-b border-gray-50 pb-2">
                   <span className="text-gray-700">{item.description}</span>
-                  <span className="text-gray-400 text-xs">{item.pic?.full_name} · {item.deadline}</span>
+                  <span className="text-gray-400 text-xs">
+                  {item.pic?.full_name} · deadline {new Date(item.deadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </span>
                 </div>
               ))}
             </div>
@@ -318,6 +328,52 @@ export default function NotulenDetail() {
           )}
         </div>
       </div>
+      {rejectOpen && (
+      <Modal title="Tolak Notulen" onClose={() => setRejectOpen(false)}>
+        <p className="text-sm text-gray-600 mb-3">
+          Jelaskan apa yang perlu direvisi oleh Notulis. Catatan ini wajib diisi.
+        </p>
+        <textarea
+          autoFocus
+          value={rejectNote}
+          onChange={(e) => setRejectNote(e.target.value)}
+          rows={5}
+          placeholder="Contoh: Latar belakang belum lengkap, tambahkan action item untuk tim IT..."
+          className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-blue-500 resize-none"
+        />
+        <div className="flex justify-end gap-2 mt-4">
+          <button
+            onClick={() => setRejectOpen(false)}
+            className="text-sm border border-gray-300 rounded px-4 py-2 text-gray-600 hover:bg-gray-50"
+          >
+            Batal
+          </button>
+          <button
+            onClick={submitReject}
+            disabled={actionLoading || !rejectNote.trim()}
+            className="text-sm text-white bg-red-600 rounded px-4 py-2 hover:bg-red-700 disabled:opacity-50"
+          >
+            {actionLoading ? 'Mengirim...' : 'Kirim Penolakan'}
+          </button>
+        </div>
+      </Modal>
+    )}
+
+    {revisionOpen && (
+      <Modal title="Catatan Revisi dari Approver" onClose={() => setRevisionOpen(false)}>
+        <p className="text-sm text-gray-700 whitespace-pre-line leading-relaxed">
+          {meeting.revision_note}
+        </p>
+        <div className="flex justify-end mt-4">
+          <button
+            onClick={() => setRevisionOpen(false)}
+            className="text-sm border border-gray-300 rounded px-4 py-2 text-gray-600 hover:bg-gray-50"
+          >
+            Tutup
+          </button>
+        </div>
+      </Modal>
+    )}
     </div>
   );
 }

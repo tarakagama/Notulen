@@ -1,5 +1,6 @@
 import Sidebar from '../components/Sidebar';
 import Topbar from '../components/Topbar';
+import NotificationCenter from '../components/NotificationCenter';
 
 export default function DashboardLayout({ children, title }) {
   return (
@@ -9,6 +10,7 @@ export default function DashboardLayout({ children, title }) {
         <Topbar title={title} />
         <main className="p-6">{children}</main>
       </div>
+      <NotificationCenter />
     </div>
   );
 }
