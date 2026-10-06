@@ -4,12 +4,15 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Builder;
 
 class Meeting extends Model
 {
     use HasFactory;
 
     protected $fillable = [
+        'room_booking_id',
+        'division_id',
         'meeting_title',
         'meeting_type',
         'meeting_date',
@@ -26,6 +29,12 @@ class Meeting extends Model
         'approver_id',
         'approved_at',
         'revision_note',
+        'visibility',
+        'unlock_request_status',
+        'unlock_reason',
+        'source',
+        'legacy_file_path',
+        'legacy_text',
     ];
 
     protected function casts(): array
@@ -34,6 +43,46 @@ class Meeting extends Model
             'meeting_date' => 'date',
             'approved_at' => 'datetime',
         ];
+    }
+
+    public function division()
+    {
+        return $this->belongsTo(Division::class);
+    }
+
+    public function scopeVisibleTo(Builder $query, User $user): Builder
+    {
+        if ($user->isSuperAdmin()) {
+            return $query;
+        }
+
+        return $query->where(function (Builder $q) use ($user) {
+            // Terlibat langsung: selalu terlihat
+            $q->where('notulis_id', $user->id)
+                ->orWhere('approver_id', $user->id)
+                ->orWhereHas('attendees', fn ($a) => $a->where('user_id', $user->id));
+
+            // Approved + Public / Division (divisi sama)
+            $q->orWhere(function (Builder $q2) use ($user) {
+                $q2->where('status', 'Approved')
+                    ->where(function (Builder $q3) use ($user) {
+                        $q3->where('visibility', 'Public');
+
+                        if ($user->division_id !== null) {
+                            $q3->orWhere(fn ($q4) => $q4
+                                ->where('visibility', 'Division')
+                                ->where('division_id', $user->division_id));
+                        }
+                    });
+            });
+
+            // AdminDivisi: semua status di divisinya, kecuali Restricted
+            if ($user->global_role === 'AdminDivisi' && $user->division_id !== null) {
+                $q->orWhere(fn ($q5) => $q5
+                    ->where('division_id', $user->division_id)
+                    ->whereIn('visibility', ['Public', 'Division']));
+            }
+        });
     }
 
     public function notulis()
@@ -49,6 +98,11 @@ class Meeting extends Model
     public function attendees()
     {
         return $this->hasMany(MeetingAttendee::class);
+    }
+
+    public function roomBooking()
+    {
+        return $this->belongsTo(RoomBooking::class);
     }
 
     /**

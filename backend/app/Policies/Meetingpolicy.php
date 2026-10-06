@@ -17,7 +17,35 @@ class MeetingPolicy
 
     public function view(User $user, Meeting $meeting): bool
     {
-        return true;
+        if ($user->isSuperAdmin()) {
+            return true;
+        }
+
+        if ($meeting->notulis_id === $user->id || $meeting->approver_id === $user->id) {
+            return true;
+        }
+
+        if ($meeting->attendees()->where('user_id', $user->id)->exists()) {
+            return true;
+        }
+
+        if ($meeting->visibility === 'Restricted') {
+            return false;
+        }
+
+        $sameDivision = $user->division_id !== null
+            && $meeting->division_id === $user->division_id;
+
+        if ($user->global_role === 'AdminDivisi' && $sameDivision) {
+            return true;
+        }
+
+        if ($meeting->status !== 'Approved') {
+            return false;
+        }
+
+        return $meeting->visibility === 'Public'
+            || ($meeting->visibility === 'Division' && $sameDivision);
     }
 
     public function create(User $user): bool
@@ -77,12 +105,11 @@ class MeetingPolicy
     }
 
     /**
-     * FR-2.4: export PDF hanya untuk notulen yang sudah Approved.
-     * Semua user boleh export (bukan cuma notulis/approver).
-     */
+    * FSD: export hanya jika Approved DAN user boleh melihat notulennya.
+    */
     public function export(User $user, Meeting $meeting): bool
     {
-        return $meeting->status === 'Approved';
+        return $meeting->status === 'Approved' && $this->view($user, $meeting);
     }
 
     /**
@@ -97,5 +124,38 @@ class MeetingPolicy
 
         return $meeting->notulis_id === $user->id
             && $meeting->status === 'Draft';
+    }
+
+    /**
+     * Hanya Notulis pemilik, hanya saat Approved, dan belum ada
+     * permohonan yang sedang menunggu.
+     */
+    public function requestUnlock(User $user, Meeting $meeting): bool
+    {
+        return $meeting->status === 'Approved'
+            && $meeting->notulis_id === $user->id
+            && $meeting->unlock_request_status !== 'Requested';
+    }
+
+    /**
+     * Approver yang ditunjuk (atau SuperAdmin), hanya jika ada permohonan
+     * 'Requested' pada notulen Approved.
+     */
+    public function approveUnlock(User $user, Meeting $meeting): bool
+    {
+        if ($meeting->status !== 'Approved' || $meeting->unlock_request_status !== 'Requested') {
+            return false;
+        }
+
+        return $user->isSuperAdmin() || $meeting->approver_id === $user->id;
+    }
+
+    /**
+     * Emergency path: hanya SuperAdmin. Dipanggil dengan
+     * authorize('forceUnlock', Meeting::class), jadi tanpa instance.
+     */
+    public function forceUnlock(User $user): bool
+    {
+        return $user->isSuperAdmin();
     }
 }

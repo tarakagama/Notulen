@@ -5,6 +5,8 @@ use App\Http\Controllers\ActionItemExtractionController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DiscussionFormalizationController;
+use App\Http\Controllers\DivisionController;
+use App\Http\Controllers\RoomController;
 use App\Http\Controllers\MeetingController;
 use App\Http\Controllers\MeetingExportController;
 use App\Http\Controllers\MeetingAttachmentController;
@@ -41,6 +43,31 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/meetings/{meeting}', [MeetingController::class, 'update']);
     Route::delete('/meetings/{meeting}', [MeetingController::class, 'destroy']);
     Route::post('/meetings/{meeting}/submit', [MeetingController::class, 'submit']);
+
+    // ── Alur Unlock Notulen (FR-APP-03, FR-APP-04) ─────────────────────
+    Route::post('/meetings/{meeting}/request-unlock', [MeetingController::class, 'requestUnlock']);
+    Route::post('/meetings/{meeting}/approve-unlock', [MeetingController::class, 'approveUnlock']);
+    Route::post('/meetings/{meeting}/force-unlock', [MeetingController::class, 'forceUnlock']);
+
+    // ── Master Divisi (FR-ORG-01) ──────────────────────────────────────
+    Route::get('/divisions', [DivisionController::class, 'index']);
+    Route::post('/divisions', [DivisionController::class, 'store']);
+    Route::put('/divisions/{division}', [DivisionController::class, 'update']);
+    Route::delete('/divisions/{division}', [DivisionController::class, 'destroy']);
+
+    // ── Room & Booking -----────────────────────────────────────────────
+    Route::get('/rooms', [RoomController::class, 'index']);
+    Route::get('/rooms/availability', [RoomController::class, 'availability']);
+    Route::get('/room-bookings', [RoomController::class, 'bookings']);
+    Route::post('/room-bookings', [RoomController::class, 'store']);
+    Route::post('/room-bookings/{roomBooking}/approve', [RoomController::class, 'approve']);
+    Route::post('/room-bookings/{roomBooking}/reject', [RoomController::class, 'reject']);
+    Route::delete('/room-bookings/{roomBooking}', [RoomController::class, 'destroy']);
+
+    // ── Meeting Locking (FR-1.2) ───────────────────────────────────────
+    Route::post('/meetings/{meeting}/request-unlock', [MeetingController::class, 'requestUnlock']);
+    Route::post('/meetings/{meeting}/approve-unlock', [MeetingController::class, 'approveUnlock']);
+    Route::post('/meetings/{meeting}/force-unlock', [MeetingController::class, 'forceUnlock']);
 
     // ── Approval Engine & Export (FR-2.x) ──────────────────────────────
     Route::post('/meetings/{meeting}/approve', [MeetingController::class, 'approve']);

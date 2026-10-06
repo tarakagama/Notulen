@@ -7,105 +7,126 @@ use Filament\Models\Contracts\FilamentUser;
 use Filament\Models\Contracts\HasName;
 use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+
 
 class User extends Authenticatable implements FilamentUser, HasName
 {
     use HasApiTokens, HasFactory, Notifiable;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
-     */
     protected $fillable = [
+        'division_id',
+        'division', // kolom teks lama v1, masih dipakai Users.jsx & updateProfile
+        'global_role',
         'full_name',
         'email',
         'password',
-        'is_admin',
-        'division',
         'position_title',
         'is_active',
+        'can_manage_rooms',
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
-     */
+    protected $appends = ['is_admin'];
+
     protected $hidden = [
         'password',
         'remember_token',
     ];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
     protected function casts(): array
     {
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
-            'is_admin' => 'boolean',
             'is_active' => 'boolean',
+            'can_manage_rooms' => 'boolean',
         ];
     }
 
-    // ── Integrasi Filament (panel admin, FR-4.x) ─────────────────────────
+    protected function isAdmin(): Attribute
+    {
+        return Attribute::get(fn () => $this->global_role === 'SuperAdmin');
+    }
 
-    /**
-     * Filament butuh method ini buat nampilin nama user di panel,
-     * karena kolom kita namanya full_name (bukan name).
-     */
+    // ── Integrasi Filament (panel admin) ──────────────────────────────
+
     public function getFilamentName(): string
     {
         return $this->full_name;
     }
 
     /**
-     * FR-4.3: hanya Admin yang boleh akses panel /admin.
+     * SuperAdmin, AdminDivisi, dan pengelola ruangan boleh masuk panel admin.
+     * Menu yang terlihat dibatasi oleh policy masing-masing resource
+     * (user = SuperAdmin saja, ruangan = pengelola ruangan).
      */
     public function canAccessPanel(Panel $panel): bool
     {
-        return $this->is_admin;
+        return in_array($this->global_role, ['SuperAdmin', 'AdminDivisi'], true)
+            || $this->canManageRooms();
     }
 
-    // ── Peran kontekstual (bukan role tetap, lihat PRD 6.4) ──────────────
+    // ── Helper role (dipakai Policy & controller) ─────────────────────
 
     /**
-     * Rapat-rapat yang notulennya ditulis oleh user ini.
+     * Boleh mengelola ruangan & booking (approve/reject/batalkan).
+     * SuperAdmin otomatis boleh; selain itu lewat flag can_manage_rooms.
+     * Izin ini TIDAK memberi akses ke data notulen.
      */
+    public function canManageRooms(): bool
+    {
+        return $this->isSuperAdmin() || (bool) $this->can_manage_rooms;
+    }
+
+    public function isSuperAdmin(): bool
+    {
+        return $this->global_role === 'SuperAdmin';
+    }
+
+    public function isAdminDivisi(): bool
+    {
+        return $this->global_role === 'AdminDivisi';
+    }
+
+    public function isViewer(): bool
+    {
+        return $this->global_role === 'Viewer';
+    }
+
+    // ── Relasi struktur organisasi ────────────────────────────────────
+
+    public function division()
+    {
+        return $this->belongsTo(Division::class);
+    }
+
+    // ── Peran kontekstual per-rapat (bukan role tetap) ────────────────
+
     public function meetingsAsNotulis()
     {
         return $this->hasMany(Meeting::class, 'notulis_id');
     }
 
-    /**
-     * Rapat-rapat yang user ini jadi approver-nya.
-     */
     public function meetingsAsApprover()
     {
         return $this->hasMany(Meeting::class, 'approver_id');
     }
 
-    /**
-     * Action item yang jadi tanggung jawab user ini (PIC).
-     */
     public function actionItemsAsPic()
     {
         return $this->hasMany(ActionItem::class, 'pic_id');
     }
 
     /**
-     * Rapat-rapat yang user ini hadiri (sebagai user internal).
+     * Baris meeting_attendees di mana user ini tercatat sebagai peserta
+     * internal (user_id terisi) — baik lewat undangan booking otomatis
+     * maupun ditambahkan manual oleh Notulis.
      */
-    public function meetingsAttended()
+    public function attendeeRecords()
     {
-        return $this->belongsToMany(Meeting::class, 'meeting_attendees')
-            ->withPivot(['external_name', 'external_org', 'role_in_meeting', 'is_signed']);
+        return $this->hasMany(MeetingAttendee::class);
     }
 }

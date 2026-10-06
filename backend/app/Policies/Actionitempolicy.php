@@ -39,7 +39,7 @@ class ActionItemPolicy
      */
     public function updateStatus(User $user, ActionItem $actionItem): bool
     {
-        return $user->is_admin || $actionItem->pic_id === $user->id;
+        return $user->isSuperAdmin() || $actionItem->pic_id === $user->id;
     }
 
     /**
@@ -47,6 +47,6 @@ class ActionItemPolicy
      */
     public function delete(User $user, ActionItem $actionItem): bool
     {
-        return $user->is_admin;
+        return $user->isSuperAdmin();
     }
 }

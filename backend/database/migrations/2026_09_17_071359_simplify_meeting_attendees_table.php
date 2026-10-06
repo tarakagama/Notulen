@@ -1,32 +1,36 @@
 <?php
 
-namespace App\Http\Controllers;
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
 
-use App\Models\Meeting;
-use App\Models\MeetingAttendee;
-use Illuminate\Http\Request;
-
-class AttendeeController extends Controller
+return new class extends Migration
 {
-    public function store(Request $request, Meeting $meeting)
+    private array $renames = [
+        'external_name' => 'name',
+        'external_org' => 'division',
+        'is_signed' => 'is_present',
+    ];
+
+    public function up(): void
     {
-        $this->authorize('update', $meeting);
-
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:150'],
-            'division' => ['nullable', 'string', 'max:150'],
-            'is_present' => ['nullable', 'boolean'],
-        ]);
-
-        $attendee = $meeting->attendees()->create($validated);
-
-        return response()->json($attendee, 201);
+        foreach ($this->renames as $from => $to) {
+            if (Schema::hasColumn('meeting_attendees', $from) && ! Schema::hasColumn('meeting_attendees', $to)) {
+                Schema::table('meeting_attendees', function (Blueprint $table) use ($from, $to) {
+                    $table->renameColumn($from, $to);
+                });
+            }
+        }
     }
 
-    public function destroy(Meeting $meeting, MeetingAttendee $attendee)
+    public function down(): void
     {
-        $this->authorize('update', $meeting);
-        $attendee->delete();
-        return response()->noContent();
+        foreach ($this->renames as $from => $to) {
+            if (Schema::hasColumn('meeting_attendees', $to) && ! Schema::hasColumn('meeting_attendees', $from)) {
+                Schema::table('meeting_attendees', function (Blueprint $table) use ($from, $to) {
+                    $table->renameColumn($to, $from);
+                });
+            }
+        }
     }
-}
+};

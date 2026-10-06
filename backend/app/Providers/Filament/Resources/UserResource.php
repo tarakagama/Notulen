@@ -19,11 +19,24 @@ public static function form(Form $form): Form
                 ->dehydrated(fn ($state) => filled($state))
                 ->maxLength(255),
 
-            Forms\Components\Toggle::make('is_admin')
-                ->label('Admin'),
+            Forms\Components\Select::make('global_role')
+                ->label('Role')
+                ->options([
+                    'SuperAdmin' => 'Super Admin',
+                    'AdminDivisi' => 'Admin Divisi',
+                    'User' => 'User',
+                    'Viewer' => 'Viewer',
+                ])
+                ->default('User')
+                ->required(),
+
+            Forms\Components\Select::make('division_id')
+                ->label('Divisi')
+                ->options(fn () => \App\Models\Division::orderBy('division_name')->pluck('division_name', 'id'))
+                ->searchable(),
 
             Forms\Components\TextInput::make('division')
-                ->label('Divisi')
+                ->label('Divisi (teks lama)')
                 ->maxLength(100),
 
             Forms\Components\TextInput::make('position_title')
@@ -47,12 +60,16 @@ public static function table(Table $table): Table
             Tables\Columns\TextColumn::make('email')
                 ->searchable(),
 
-            Tables\Columns\IconColumn::make('is_admin')
-                ->label('Admin')
-                ->boolean(),
+            Tables\Columns\TextColumn::make('global_role')
+                ->label('Role')
+                ->badge(),
+
+            Forms\Components\Toggle::make('can_manage_rooms')
+                ->label('Pengelola ruangan (PIC GA)')
+                ->helperText('Boleh menyetujui booking & mengelola ruangan. Tidak memberi akses ke notulen.'),
 
             Tables\Columns\TextColumn::make('division')
-                ->label('Divisi'),
+                ->label('Divisi (teks lama)'),
 
             Tables\Columns\IconColumn::make('is_active')
                 ->label('Aktif')

@@ -46,6 +46,7 @@ class StoreMeetingRequest extends FormRequest
             'discussion_notes.*.order_in_level' => ['required', 'integer', 'min:0'],
             'discussion_notes.*.speaker_group' => ['nullable', 'string', 'max:150'],
             'discussion_notes.*.category' => ['nullable', 'in:Bug/Error,SOP,New Requirement'],
+            'visibility' => ['nullable', 'in:Public,Division,Restricted'],
 
             // ── Action items (FR-1.5, FR-1.6) ────────────────────────
             // Boleh kosong total (FR-1.6: rapat tanpa action item itu sah)

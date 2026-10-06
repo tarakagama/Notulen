@@ -7,6 +7,7 @@ use App\Http\Requests\StoreMeetingRequest;
 use App\Http\Requests\UpdateMeetingRequest;
 use App\Models\ActionItem;
 use App\Models\DiscussionNote;
+use App\Models\AuditLog;
 use App\Models\Meeting;
 use App\Models\MeetingAttendee;
 use Illuminate\Http\Request;
@@ -19,7 +20,9 @@ class MeetingController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Meeting::query()->with(['notulis', 'approver']);
+        $query = Meeting::query()
+        ->visibleTo($request->user())
+        ->with(['notulis', 'approver']);
 
         if ($search = $request->query('search')) {
             $query->where('meeting_title', 'like', "%{$search}%");
@@ -65,6 +68,95 @@ class MeetingController extends Controller
         ]);
     }
 
+  /**
+     * FR-APP-03 — Notulis mengajukan permintaan Unlock pada notulen Approved.
+     */
+    public function requestUnlock(Request $request, Meeting $meeting)
+    {
+        $this->authorize('requestUnlock', $meeting);
+
+        $validated = $request->validate([
+            'unlock_reason' => ['required', 'string', 'max:1000'],
+        ]);
+
+        $old = $meeting->only(['status', 'unlock_request_status', 'unlock_reason']);
+
+        $meeting->update([
+            'unlock_request_status' => 'Requested',
+            'unlock_reason' => $validated['unlock_reason'],
+        ]);
+
+        AuditLog::record(
+            'REQUEST_UNLOCK',
+            Meeting::class,
+            $meeting->id,
+            $old,
+            $meeting->only(['status', 'unlock_request_status', 'unlock_reason'])
+        );
+
+        // TODO: kirim notifikasi in-app ke approver (FR-APP-03)
+
+        return $meeting->fresh();
+    }
+
+    /**
+     * FR-APP-03 — Approver menyetujui permintaan Unlock.
+     * Status notulen kembali ke Draft, tercatat di audit_logs.
+     */
+    public function approveUnlock(Request $request, Meeting $meeting)
+    {
+        $this->authorize('approveUnlock', $meeting);
+
+        $old = $meeting->only(['status', 'unlock_request_status']);
+
+        $meeting->update([
+            'status' => 'Draft',
+            'unlock_request_status' => 'Approved',
+        ]);
+
+        AuditLog::record(
+            'APPROVE_UNLOCK',
+            Meeting::class,
+            $meeting->id,
+            $old,
+            $meeting->only(['status', 'unlock_request_status'])
+        );
+
+        return $meeting->fresh();
+    }
+
+    /**
+     * FR-APP-04 — SuperAdmin override tanpa menunggu Approver.
+     * Selalu tercatat penuh di audit_logs.
+     */
+    public function forceUnlock(Request $request, Meeting $meeting)
+    {
+        $this->authorize('forceUnlock', Meeting::class);
+
+        abort_unless(
+            $meeting->status === 'Approved',
+            422,
+            'Hanya notulen berstatus Approved yang bisa di-unlock.'
+        );
+
+        $old = $meeting->only(['status', 'unlock_request_status']);
+
+        $meeting->update([
+            'status' => 'Draft',
+            'unlock_request_status' => 'Approved',
+        ]);
+
+        AuditLog::record(
+            'FORCE_UNLOCK',
+            Meeting::class,
+            $meeting->id,
+            $old,
+            $meeting->only(['status', 'unlock_request_status'])
+        );
+
+        return $meeting->fresh();
+    }
+
     /**
      * FR-1.1-1.7: buat notulen baru, sekaligus attendees/notes/action items
      * kalau dikirim bersamaan. Selalu mulai dari status Draft.
@@ -77,9 +169,10 @@ class MeetingController extends Controller
                     'meeting_title', 'meeting_type', 'meeting_date',
                     'start_time', 'end_time', 'location', 'agenda',
                     'background', 'conclusion', 'approver_id',
-                    'discussion_mode', 'discussion_manual_content',
+                    'discussion_mode', 'discussion_manual_content', 'visibility',
                 ]),
                 'notulis_id' => $request->user()->id,
+                'division_id' => $request->user()->division_id,
                 'status' => 'Draft',
             ]);
 
@@ -110,7 +203,7 @@ class MeetingController extends Controller
                 'meeting_title', 'meeting_type', 'meeting_date',
                 'start_time', 'end_time', 'location', 'agenda',
                 'background', 'conclusion', 'approver_id',
-                'discussion_mode', 'discussion_manual_content',
+                'discussion_mode', 'discussion_manual_content', 'visibility',
             ]));
 
             if ($request->has('attendees')) {
@@ -182,6 +275,8 @@ class MeetingController extends Controller
             'status' => 'Approved',
             'approved_at' => now(),
             'revision_note' => null,
+            'unlock_request_status' => 'None',
+            'unlock_reason' => null,
         ]);
 
         // TODO: kirim notifikasi email ke setiap PIC di $meeting->actionItems
@@ -209,8 +304,8 @@ class MeetingController extends Controller
     {
         foreach ($attendees as $attendee) {
             MeetingAttendee::create([
+                ...\Illuminate\Support\Arr::only($attendee, ['name', 'division', 'is_present']),
                 'meeting_id' => $meeting->id,
-                ...$attendee,
             ]);
         }
     }
@@ -263,9 +358,9 @@ class MeetingController extends Controller
         // FR-1.6: array boleh kosong, tidak ada yang wajib diinsert.
         foreach ($actionItems as $item) {
             ActionItem::create([
-                'meeting_id' => $meeting->id,
+                ...\Illuminate\Support\Arr::only($item, ['description', 'pic_id', 'deadline', 'priority']),
                 'source' => $item['source'] ?? 'Manual',
-                ...collect($item)->except('source')->all(),
+                'meeting_id' => $meeting->id,
             ]);
         }
     }
