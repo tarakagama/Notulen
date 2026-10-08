@@ -42,7 +42,7 @@ class RoomPolicy
      */
     public function delete(User $user, Room $room): bool
     {
-        return false;
+        return false;   
     }
 
     public function deleteAny(User $user): bool

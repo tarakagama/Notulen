@@ -48,7 +48,9 @@ class User extends Authenticatable implements FilamentUser, HasName
 
     protected function isAdmin(): Attribute
     {
-        return Attribute::get(fn () => $this->global_role === 'SuperAdmin');
+        return Attribute::get(fn () => array_key_exists('global_role', $this->attributes)
+            ? $this->global_role === 'SuperAdmin'
+            : null);
     }
 
     // ── Integrasi Filament (panel admin) ──────────────────────────────

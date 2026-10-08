@@ -61,7 +61,7 @@ class AuthController extends Controller
      */
     public function me(Request $request)
     {
-        return $request->user()->only(['id', 'full_name', 'email', 'is_admin', 'global_role', 'division_id', 'division', 'position_title']);
+        return $request->user()->only(['id', 'full_name', 'email', 'is_admin', 'global_role', 'can_manage_rooms', 'division_id', 'division', 'position_title']);
     }
 
     /**

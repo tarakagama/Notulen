@@ -18,24 +18,27 @@ class MeetingAttachmentController extends Controller
             'file_type' => ['required', 'in:Scan Daftar Hadir,Dokumentasi Foto,Lainnya'],
         ]);
 
-        $path = $request->file('file')->store('meeting-attachments', 'public');
+        $path = $request->file('file')->store('meeting-attachments', MeetingAttachment::DISK);
 
         $attachment = $meeting->attachments()->create([
             'file_type' => $request->input('file_type'),
             'file_path' => $path,
         ]);
 
-        return response()->json([
-            ...$attachment->toArray(),
-            'url' => Storage::disk('public')->url($path),
-        ], 201);
+        // 'url' ikut terserialisasi lewat $appends (URL bertanda tangan sementara)
+        return response()->json($attachment, 201);
     }
 
     public function destroy(Meeting $meeting, MeetingAttachment $attachment)
     {
         $this->authorize('update', $meeting);
 
+        abort_unless($attachment->meeting_id === $meeting->id, 404);
+
+        Storage::disk(MeetingAttachment::DISK)->delete($attachment->file_path);
+        // Sisa berkas lama yang belum dipindah dari disk publik
         Storage::disk('public')->delete($attachment->file_path);
+
         $attachment->delete();
 
         return response()->noContent();

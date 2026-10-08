@@ -16,7 +16,7 @@ class UpdateActionItemStatusRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'status' => ['required', 'in:Open,In Progress,Overdue,Completed'],
+            'status' => ['required', 'in:Open,In Progress,Completed'],
             'completion_note' => ['nullable', 'string', 'max:2000'],
         ];
     }

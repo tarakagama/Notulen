@@ -9,16 +9,18 @@ use Illuminate\Http\Request;
 class ActionItemController extends Controller
 {
     /**
-     * Daftar SEMUA action item lintas rapat (bukan cuma milik sendiri) —
-     * dipakai halaman "Action Items" overview. Beda dari myTasks() yang
-     * cuma filter pic_id = current user.
+     * Daftar action item lintas rapat untuk halaman "Action Items" overview.
+     * Hanya action item dari notulen yang boleh dilihat user (visibility).
      */
     public function index(Request $request)
     {
-        $query = ActionItem::with(['pic', 'meeting:id,meeting_title']);
+        $query = ActionItem::with([
+            'pic:id,full_name,email,division,division_id,position_title',
+            'meeting:id,meeting_title',
+        ])->whereHas('meeting', fn ($q) => $q->visibleTo($request->user()));
 
         if ($status = $request->query('status')) {
-            $query->whereIn('status', (array) $status);
+            $query->effectiveStatus((array) $status);
         }
 
         if ($search = $request->query('search')) {
@@ -35,7 +37,8 @@ class ActionItemController extends Controller
 
     /**
      * FR-3.4: "Tugas Saya" — seluruh action item milik user yang login,
-     * lintas rapat.
+     * lintas rapat. Tugas yang ditunjuk ke seorang PIC selalu terlihat oleh
+     * PIC itu sendiri; field meeting dibatasi (id, judul, tanggal).
      */
     public function myTasks(Request $request)
     {
@@ -43,7 +46,7 @@ class ActionItemController extends Controller
             ->with('meeting:id,meeting_title,meeting_date');
 
         if ($status = $request->query('status')) {
-            $query->where('status', $status);
+            $query->effectiveStatus((array) $status);
         }
 
         return $query->orderBy('deadline')
@@ -59,11 +62,11 @@ class ActionItemController extends Controller
     {
         $data = $request->validated();
 
-            if ($data['status'] === 'Completed') {
-                $data['completed_at'] = now();
-            } else {
-                $data['completed_at'] = null;
-            }
+        if ($data['status'] === 'Completed') {
+            $data['completed_at'] = now();
+        } else {
+            $data['completed_at'] = null;
+        }
 
         $actionItem->update($data);
 

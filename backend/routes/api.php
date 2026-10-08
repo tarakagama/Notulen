@@ -64,11 +64,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/room-bookings/{roomBooking}/reject', [RoomController::class, 'reject']);
     Route::delete('/room-bookings/{roomBooking}', [RoomController::class, 'destroy']);
 
-    // ── Meeting Locking (FR-1.2) ───────────────────────────────────────
-    Route::post('/meetings/{meeting}/request-unlock', [MeetingController::class, 'requestUnlock']);
-    Route::post('/meetings/{meeting}/approve-unlock', [MeetingController::class, 'approveUnlock']);
-    Route::post('/meetings/{meeting}/force-unlock', [MeetingController::class, 'forceUnlock']);
-
     // ── Approval Engine & Export (FR-2.x) ──────────────────────────────
     Route::post('/meetings/{meeting}/approve', [MeetingController::class, 'approve']);
     Route::post('/meetings/{meeting}/reject', [MeetingController::class, 'reject']);

@@ -26,6 +26,7 @@ class AttendeeController extends Controller
     public function destroy(Meeting $meeting, MeetingAttendee $attendee)
     {
         $this->authorize('update', $meeting);
+        abort_unless($attendee->meeting_id === $meeting->id, 404);
         $attendee->delete();
         return response()->noContent();
     }
