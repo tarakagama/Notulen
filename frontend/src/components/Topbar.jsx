@@ -1,7 +1,7 @@
-import { Bell } from 'lucide-react';
 import logoPlnEpi from '../assets/logo-plnepi.png';
 import { useAuth } from '../context/AuthContext';
 import GlobalSearch from './GlobalSearch';
+import NotificationBell from './NotificationBell';
 
 export default function Topbar({ title = 'Dashboard' }) {
   const { user } = useAuth();
@@ -18,9 +18,7 @@ export default function Topbar({ title = 'Dashboard' }) {
 
       <div className="flex items-center gap-5">
         <GlobalSearch />
-        <button className="relative p-2 rounded text-gray-500 hover:text-gray-800 hover:bg-gray-100">
-          <Bell size={22} strokeWidth={1.75} />
-        </button>
+        <NotificationBell />
         <div
           className="w-10 h-10 rounded-full bg-[#0f2557] text-white text-base flex items-center justify-center font-semibold"
           title={user?.full_name}

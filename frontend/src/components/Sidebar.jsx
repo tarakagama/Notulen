@@ -1,17 +1,21 @@
 import { useState } from 'react';
 import {
   LayoutDashboard, FileText, CheckSquare, Users, Settings,
-  LogOut, ChevronDown, User, Lock, Bell, Printer
+  LogOut, ChevronDown, User, Lock, Bell, Printer, Building2,
+  CalendarDays, ClipboardCheck
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-  { icon: FileText, label: 'Notulen', path: '/notulen' },
-  { icon: CheckSquare, label: 'Action Items', path: '/action-items' },
+  { icon: FileText, label: 'Notulen', path: '/notulen', matchPrefix: true },
+  { icon: CalendarDays, label: 'Booking Ruangan', path: '/booking' },
+  { icon: ClipboardCheck, label: 'Antrean Booking', path: '/booking/antrean', roomsOnly: true },
+  { icon: CheckSquare, label: 'Action Items', path: '/action-items', matchPrefix: true },
   { icon: Printer, label: 'Cetak Daftar Hadir', path: '/cetak-daftar-hadir' },
-  { icon: Users, label: 'User Management', path: '/users' },
+  { icon: Users, label: 'User Management', path: '/users', usersOnly: true },
+  { icon: Building2, label: 'Divisi', path: '/divisi', superAdminOnly: true },
   {
     icon: Settings,
     label: 'Pengaturan',
@@ -27,12 +31,17 @@ const navItems = [
 export default function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { logout, isAdmin } = useAuth();
+  const { logout, isSuperAdmin, canManageRooms, canManageUsers } = useAuth();
   const [expanded, setExpanded] = useState(
     location.pathname.startsWith('/settings') ? 'Pengaturan' : null
   );
 
-  const visibleNavItems = navItems.filter((item) => item.path !== '/users' || isAdmin);
+  const visibleNavItems = navItems.filter(
+    (item) =>
+      (!item.superAdminOnly || isSuperAdmin) &&
+      (!item.roomsOnly || canManageRooms) &&
+      (!item.usersOnly || canManageUsers)
+  );
 
   async function handleLogout() {
     await logout();
@@ -55,7 +64,9 @@ export default function Sidebar() {
           const isOpen = expanded === item.label;
 
           if (!hasChildren) {
-            const isActive = location.pathname === item.path;
+            const isActive = item.matchPrefix
+                 ? location.pathname.startsWith(item.path)
+                 : location.pathname === item.path;
             return (
               <Link
                 key={item.path}

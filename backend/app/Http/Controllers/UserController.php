@@ -5,15 +5,19 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Database\QueryException;
 
 class UserController extends Controller
 {
     private const ROLES = ['SuperAdmin', 'AdminDivisi', 'User', 'Viewer'];
 
+    // Role yang boleh dikelola Admin Divisi di divisinya (FR-ORG-02).
+    private const DIVISION_MANAGEABLE_ROLES = ['User', 'Viewer'];
+
     /**
      * Daftar user ringkas buat dropdown (pilih PIC, attendee internal, dst)
-     * ATAU buat halaman User Management (admin). Semua user login boleh
-     * akses — aksi Create/Update/Delete tetap dibatasi SuperAdmin di bawah.
+     * ATAU buat halaman User Management. Semua user login boleh membaca;
+     * aksi Create/Update/Delete dibatasi di bawah.
      */
     public function index(Request $request)
     {
@@ -38,16 +42,24 @@ class UserController extends Controller
     }
 
     /**
-     * SuperAdmin only — bikin user baru.
+     * SuperAdmin: bebas. Admin Divisi: hanya user/viewer di divisinya sendiri.
      */
     public function store(Request $request)
     {
-        $this->authorizeAdmin($request);
+        $actor = $request->user();
+        $this->authorizeManage($actor);
 
-        $data = $request->validate($this->rules($request));
+        $data = $request->validate($this->rules($request, $actor));
 
         $data['global_role'] = $this->resolveRole($data, null);
         unset($data['is_admin']);
+
+        if (! $actor->isSuperAdmin()) {
+            $this->assertDivisionManageableRole($data['global_role']);
+            // Admin Divisi hanya membuat user di divisinya sendiri, tanpa hak pengelola ruangan.
+            $data['division_id'] = $actor->division_id;
+            $data['can_manage_rooms'] = false;
+        }
 
         $user = User::create($data);
 
@@ -55,13 +67,15 @@ class UserController extends Controller
     }
 
     /**
-     * SuperAdmin only — update data user lain.
+     * SuperAdmin: bebas. Admin Divisi: hanya user/viewer di divisinya sendiri,
+     * tanpa mengubah divisi, role di luar User/Viewer, atau hak pengelola ruangan.
      */
     public function update(Request $request, User $user)
     {
-        $this->authorizeAdmin($request);
+        $actor = $request->user();
+        $this->authorizeManage($actor, $user);
 
-        $data = $request->validate($this->rules($request, $user));
+        $data = $request->validate($this->rules($request, $actor, $user));
 
         if (empty($data['password'])) {
             unset($data['password']);
@@ -74,39 +88,64 @@ class UserController extends Controller
             $data['global_role'] = $role;
         }
 
+        if (! $actor->isSuperAdmin()) {
+            if ($role !== null) {
+                $this->assertDivisionManageableRole($role);
+            }
+            // Divisi dan hak pengelola ruangan hanya boleh diubah SuperAdmin.
+            unset($data['division_id'], $data['can_manage_rooms']);
+        }
+
         $user->update($data);
 
         return $user->fresh();
     }
 
     /**
-     * SuperAdmin only — hapus user.
+     * SuperAdmin only. Admin Divisi cukup menonaktifkan user lewat update.
      */
     public function destroy(Request $request, User $user)
     {
-        $this->authorizeAdmin($request);
+        abort_unless(
+            $request->user()->isSuperAdmin(),
+            403,
+            'Hanya Super Admin yang boleh menghapus user. Admin Divisi bisa menonaktifkan user.'
+        );
 
         if ($user->id === $request->user()->id) {
             return response()->json(['message' => 'Tidak bisa menghapus akun sendiri.'], 422);
         }
 
-        $user->delete();
+        try {
+            $user->delete();
+        } catch (QueryException $e) {
+            // 23000 = pelanggaran foreign key (user masih dipakai di tabel lain)
+            if ($e->getCode() === '23000') {
+                return response()->json([
+                    'message' => 'User ini masih tercatat sebagai PIC action item, notulis, approver, atau peserta rapat, sehingga tidak bisa dihapus. Nonaktifkan akunnya saja.',
+                ], 422);
+            }
+            throw $e;
+        }
 
         return response()->noContent();
     }
 
-    private function rules(Request $request, ?User $user = null): array
+    private function rules(Request $request, User $actor, ?User $user = null): array
     {
         // Role akhir yang akan berlaku (termasuk toggle is_admin dari UI lama).
         $role = $request->input('global_role')
             ?? ($request->boolean('is_admin') ? 'SuperAdmin' : ($user?->global_role ?? 'User'));
 
-        // SuperAdmin boleh tanpa divisi; role lain wajib punya divisi.
-        // Saat update, 'sometimes' berarti: kalau field-nya dikirim tidak boleh null,
-        // kalau tidak dikirim data lama dibiarkan.
-        $divisionRule = $role === 'SuperAdmin'
-            ? ['nullable', 'exists:divisions,id']
-            : [$user ? 'sometimes' : 'required', 'exists:divisions,id'];
+        if (! $actor->isSuperAdmin() || $role === 'SuperAdmin') {
+            // Admin Divisi: divisi dikunci ke divisinya sendiri oleh controller (input diabaikan).
+            // SuperAdmin boleh tanpa divisi.
+            $divisionRule = ['nullable', 'exists:divisions,id'];
+        } else {
+            // Role lain wajib punya divisi. Saat update, 'sometimes' berarti kalau dikirim
+            // tidak boleh kosong, kalau tidak dikirim data lama dibiarkan.
+            $divisionRule = [$user ? 'sometimes' : 'required', 'exists:divisions,id'];
+        }
 
         return [
             'full_name' => ['required', 'string', 'max:150'],
@@ -119,7 +158,7 @@ class UserController extends Controller
             // Kompatibilitas Users.jsx lama yang masih mengirim toggle is_admin.
             'is_admin' => ['nullable', 'boolean'],
             'division_id' => $divisionRule,
-            'division' => ['nullable', 'string', 'max:100'],
+            'division' => ['nullable', 'string', 'max:100'], // teks lama v1
             'position_title' => ['nullable', 'string', 'max:100'],
             'can_manage_rooms' => ['sometimes', 'boolean'],
             'is_active' => ['boolean'],
@@ -161,8 +200,38 @@ class UserController extends Controller
         return $existing === null ? 'User' : null;
     }
 
-    private function authorizeAdmin(Request $request): void
+    /**
+     * Boleh mengelola user: SuperAdmin, atau Admin Divisi (yang punya divisi) terhadap
+     * user/viewer di divisinya sendiri.
+     */
+    private function authorizeManage(User $actor, ?User $target = null): void
     {
-        abort_unless($request->user()->isSuperAdmin(), 403, 'Hanya admin yang boleh melakukan aksi ini.');
+        if ($actor->isSuperAdmin()) {
+            return;
+        }
+
+        abort_unless(
+            $actor->global_role === 'AdminDivisi' && $actor->division_id !== null,
+            403,
+            'Hanya Super Admin atau Admin Divisi yang boleh mengelola user.'
+        );
+
+        if ($target !== null) {
+            abort_unless(
+                $target->division_id === $actor->division_id
+                    && in_array($target->global_role, self::DIVISION_MANAGEABLE_ROLES, true),
+                403,
+                'Admin Divisi hanya bisa mengelola user dan viewer di divisinya sendiri.'
+            );
+        }
+    }
+
+    private function assertDivisionManageableRole(string $role): void
+    {
+        abort_unless(
+            in_array($role, self::DIVISION_MANAGEABLE_ROLES, true),
+            403,
+            'Admin Divisi hanya bisa membuat atau mengubah user dengan role User atau Viewer.'
+        );
     }
 }

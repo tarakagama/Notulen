@@ -1,11 +1,24 @@
 import { useState, useEffect } from 'react';
-import { CheckCircle2, Circle, Clock, RotateCcw } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Circle, Clock, RotateCcw } from 'lucide-react';
 import { listMyTasks, updateActionItemStatus } from '../api/actionItems';
+import { ACTION_ITEM_STATUS_TO_LABEL } from '../lib/statuslabels';
+import { extractError } from '../lib/errors';
+import ActionItemTabs from '../components/ActionItemTabs';
+
 
 const PRIORITY_STYLE = {
   High: 'bg-red-50 text-red-700',
   Medium: 'bg-yellow-50 text-yellow-700',
   Low: 'bg-gray-50 text-gray-600',
+};
+
+// Badge memakai effective_status (Open | In Progress | Overdue | Completed) dari backend.
+// "Overdue" dihitung server dari deadline, bukan disimpan di kolom status.
+const STATUS_STYLE = {
+  Open: 'text-gray-700 bg-gray-100',
+  'In Progress': 'text-blue-700 bg-blue-50',
+  Overdue: 'text-red-700 bg-red-50',
+  Completed: 'text-green-700 bg-green-50',
 };
 
 function formatDate(iso) {
@@ -21,7 +34,7 @@ export default function ActionItems() {
 
   const load = () => {
     setLoading(true);
-    listMyTasks()
+    listMyTasks({ per_page: 100 })  
       .then((res) => setItems(res.data || res))
       .catch(() => setError('Gagal memuat daftar action items.'))
       .finally(() => setLoading(false));
@@ -31,7 +44,7 @@ export default function ActionItems() {
 
   const changeStatus = async (item, status, completion_note = null) => {
     setBusyId(item.id);
-    setError('');
+      setError(extractError(err, 'Gagal mengubah status.'));
     try {
       await updateActionItemStatus(item.id, { status, completion_note });
       load();
@@ -53,6 +66,8 @@ export default function ActionItems() {
 
   return (
     <div className="space-y-6">
+      <ActionItemTabs />
+      
       {error && (
         <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded px-4 py-2.5">{error}</div>
       )}
@@ -67,7 +82,7 @@ export default function ActionItems() {
         {loading ? (
           <p className="text-sm text-gray-400 p-5">Memuat data...</p>
         ) : active.length === 0 ? (
-          <p className="text-sm text-gray-400 p-5">Tidak ada tugas aktif. 🎉</p>
+          <p className="text-sm text-gray-400 p-5">Tidak ada tugas aktif. </p>
         ) : (
           <table className="w-full text-sm">
             <thead>
@@ -82,7 +97,7 @@ export default function ActionItems() {
             </thead>
             <tbody>
               {active.map((item) => {
-                const overdue = item.deadline && new Date(item.deadline) < new Date();
+                const overdue = item.effective_status === 'Overdue';
                 return (
                   <tr key={item.id} className="border-b border-gray-50 hover:bg-gray-50">
                     <td className="px-5 py-3.5 text-gray-800 font-medium">{item.description}</td>
@@ -94,10 +109,13 @@ export default function ActionItems() {
                       <span className={`px-2 py-0.5 rounded text-xs ${PRIORITY_STYLE[item.priority] || ''}`}>{item.priority}</span>
                     </td>
                     <td className="px-5 py-3.5">
-                      <span className="inline-flex items-center gap-1.5 text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded">
-                        {item.status === 'In Progress' ? <Clock size={12} /> : <Circle size={12} />}
-                        {item.status}
+                      <span className={`inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded ${STATUS_STYLE[item.effective_status] || STATUS_STYLE.Open}`}>
+                        {overdue ? <AlertTriangle size={12} /> : item.status === 'In Progress' ? <Clock size={12} /> : <Circle size={12} />}
+                        {ACTION_ITEM_STATUS_TO_LABEL[item.effective_status] || item.effective_status}
                       </span>
+                      {overdue && item.status === 'In Progress' && (
+                        <span className="block text-[10px] text-gray-400 mt-0.5">Sedang dikerjakan</span>
+                      )}
                     </td>
                     <td className="px-5 py-3.5 text-right whitespace-nowrap">
                       {item.status === 'Open' && (

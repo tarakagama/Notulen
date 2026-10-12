@@ -79,3 +79,20 @@ export async function addAttendee(meetingId, attendee) {
 export async function removeAttendee(meetingId, attendeeId) {
   await api.delete(`/meetings/${meetingId}/attendees/${attendeeId}`);
 }
+
+// ── Alur unlock notulen yang sudah Approved ──────────────────────────
+
+export async function requestUnlock(id, unlockReason) {
+  const { data } = await api.post(`/meetings/${id}/request-unlock`, { unlock_reason: unlockReason });
+  return data;
+}
+
+export async function approveUnlock(id) {
+  const { data } = await api.post(`/meetings/${id}/approve-unlock`);
+  return data;
+}
+
+export async function forceUnlock(id) {
+  const { data } = await api.post(`/meetings/${id}/force-unlock`);
+  return data;
+}

@@ -2,6 +2,14 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Search, Filter } from 'lucide-react';
 import { listMeetings } from '../api/meetings';
+import { meetingStatusLabel, visibilityLabel } from '../lib/statuslabels';
+import { useAuth } from '../context/AuthContext';
+
+const visibilityStyle = {
+  Public: 'bg-green-50 text-green-700',
+  Division: 'bg-blue-50 text-blue-700',
+  Restricted: 'bg-red-50 text-red-700',
+};
 
 const statusStyle = {
   Draft: 'bg-yellow-50 text-yellow-700',
@@ -18,6 +26,7 @@ function formatDate(isoString) {
 }
 
 export default function NotulenList() {
+  const { isViewer } = useAuth();
   const [meetings, setMeetings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -47,13 +56,15 @@ export default function NotulenList() {
             <Filter size={16} strokeWidth={1.75} />
             Filter Status
           </button>
-          <Link
-            to="/notulen/baru"
-            className="flex items-center gap-2 text-sm text-white bg-[#0f2557] rounded px-4 py-2.5 hover:bg-[#0c1e47]"
-          >
-            <Plus size={16} strokeWidth={1.75} />
-            Buat Notulen
-          </Link>
+          {!isViewer && (
+            <Link
+              to="/notulen/baru"
+              className="flex items-center gap-2 text-sm text-white bg-[#0f2557] rounded px-4 py-2.5 hover:bg-[#0c1e47]"
+            >
+              <Plus size={16} strokeWidth={1.75} />
+              Buat Notulen
+            </Link>
+          )}
         </div>
       </div>
 
@@ -79,7 +90,14 @@ export default function NotulenList() {
             <tbody>
               {meetings.map((item) => (
                 <tr key={item.id} className="border-b border-gray-50 hover:bg-gray-50">
-                  <td className="px-5 py-3.5 text-gray-800 font-medium">{item.meeting_title}</td>
+                  <td className="px-5 py-3.5 text-gray-800 font-medium">
+                      {item.meeting_title}
+                      {item.visibility && (
+                        <span className={`ml-2 align-middle px-2 py-0.5 rounded text-[10px] font-normal ${visibilityStyle[item.visibility] || 'bg-gray-50 text-gray-600'}`}>
+                          {visibilityLabel(item.visibility)}
+                        </span>
+                      )}
+                    </td>
                   <td className="px-5 py-3.5 text-gray-500">{formatDate(item.meeting_date)}</td>
                   <td className="px-5 py-3.5 text-gray-500">{item.notulis?.full_name || '-'}</td>
                   <td className="px-5 py-3.5">

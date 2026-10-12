@@ -10,6 +10,8 @@ use App\Models\DiscussionNote;
 use App\Models\AuditLog;
 use App\Models\Meeting;
 use App\Models\MeetingAttendee;
+use App\Models\User;
+use App\Notifications\AppNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -95,6 +97,18 @@ class MeetingController extends Controller
         );
 
         // TODO: kirim notifikasi in-app ke approver (FR-APP-03)
+        // Beri tahu approver; kalau belum ditunjuk, ke SuperAdmin.
+        $approvers = $meeting->approver_id
+            ? collect([$meeting->approver])
+            : User::where('is_active', true)->where('global_role', 'SuperAdmin')->get();
+
+        AppNotification::send(
+            $approvers,
+            'meeting.unlock_requested',
+            'Permohonan unlock notulen',
+            "{$meeting->meeting_title}: {$validated['unlock_reason']}",
+            '/notulen/'.$meeting->id
+        );
 
         return $meeting->fresh();
     }
@@ -121,6 +135,16 @@ class MeetingController extends Controller
             $old,
             $meeting->only(['status', 'unlock_request_status'])
         );
+
+        if ($meeting->notulis_id !== $request->user()->id) {
+            AppNotification::send(
+                $meeting->notulis,
+                'meeting.unlocked',
+                'Notulen dibuka kembali',
+                $meeting->meeting_title,
+                '/notulen/'.$meeting->id
+            );
+        }
 
         return $meeting->fresh();
     }
@@ -153,6 +177,16 @@ class MeetingController extends Controller
             $old,
             $meeting->only(['status', 'unlock_request_status'])
         );
+
+        if ($meeting->notulis_id !== $request->user()->id) {
+            AppNotification::send(
+                $meeting->notulis,
+                'meeting.unlocked',
+                'Notulen dibuka kembali',
+                $meeting->meeting_title,
+                '/notulen/'.$meeting->id
+            );
+        }
 
         return $meeting->fresh();
     }
@@ -281,6 +315,15 @@ class MeetingController extends Controller
 
         // TODO: kirim notifikasi email ke setiap PIC di $meeting->actionItems
         // (lihat NFR "Autentikasi" & rencana notifikasi email di PRD 5.3).
+        if ($meeting->notulis_id !== auth()->id()) {
+            AppNotification::send(
+                $meeting->notulis,
+                'meeting.approved',
+                'Notulen disetujui',
+                $meeting->meeting_title,
+                '/notulen/'.$meeting->id
+            );
+        }
 
         return $meeting;
     }

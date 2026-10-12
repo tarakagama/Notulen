@@ -48,9 +48,9 @@ export default function Dashboard() {
   if (loading) return <p className="text-sm text-gray-400">Memuat dashboard...</p>;
   if (error) return <p className="text-sm text-red-600">{error}</p>;
 
-  const active = (summary?.open ?? 0) + (summary?.in_progress ?? 0);
   const total = summary?.total ?? 0;
   const completed = summary?.completed ?? 0;
+  const active = total - completed;
   const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
 
   const stats = [

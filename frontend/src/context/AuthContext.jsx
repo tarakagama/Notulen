@@ -58,7 +58,31 @@ export function AuthProvider({ children }) {
     });
   }
 
-  const value = { user, loading, login, logout, updateLocalUser, isAdmin: !!user?.is_admin };
+    // Hak akses turunan (dasar keputusan menu & tombol; backend tetap yang menjaga).
+    const isSuperAdmin = user?.global_role === 'SuperAdmin';
+    // /me hanya mengirim flag mentah can_manage_rooms. SuperAdmin tetap boleh
+    // mengelola ruangan walau flag-nya false, jadi dihitung di sini.
+    const canManageRooms = isSuperAdmin || !!user?.can_manage_rooms;
+
+    const isDivisionAdmin = user?.global_role === 'AdminDivisi';
+    // Super Admin dan Admin Divisi boleh membuka User Management (Admin Divisi hanya divisinya).
+    const canManageUsers = isSuperAdmin || isDivisionAdmin;
+    // Viewer read-only: backend menolak semua aksi tulis, UI menyembunyikan tombolnya.
+    const isViewer = user?.global_role === 'Viewer';
+
+    const value = {
+      user,
+      loading,
+      login,
+      logout,
+      updateLocalUser,
+      isSuperAdmin,
+      canManageRooms,
+      isDivisionAdmin,
+      canManageUsers,
+      isViewer,
+      isAdmin: isSuperAdmin, // alias lama, jangan dipakai di kode baru
+    };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

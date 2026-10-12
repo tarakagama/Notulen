@@ -7,8 +7,17 @@ import {
   addAttendee, removeAttendee,
 } from '../api/meetings';
 import { listUsers } from '../api/users';
+import { listDivisions } from '../api/divisions';
 import { useAuth } from '../context/AuthContext';
 import RichTextEditor from '../components/RichTextEditor';
+import { VISIBILITY_TO_LABEL } from '../lib/statuslabels';
+import { extractError } from '../lib/errors';
+
+const VISIBILITY_HINT = {
+  Public: 'Setelah disetujui, bisa dilihat semua user.',
+  Division: 'Setelah disetujui, bisa dilihat user di divisimu.',
+  Restricted: 'Hanya notulis, approver, peserta internal (akun terdaftar), dan Admin. Tamu eksternal yang diketik manual tidak punya akses.',
+};
 
 export default function NotulenEditor() {
   const { id } = useParams();
@@ -31,6 +40,7 @@ export default function NotulenEditor() {
     discussion_content: '',
     conclusion: '',
     approver_id: '',
+    visibility: 'Division',
   });
 
   const [attendees, setAttendees] = useState([{ name: '', division: '', is_present: true }]);
@@ -39,9 +49,12 @@ export default function NotulenEditor() {
   const [uploadingFile, setUploadingFile] = useState(false);
   const [newAttendee, setNewAttendee] = useState({ name: '', division: '', is_present: true });
   const [addingAttendee, setAddingAttendee] = useState(false);
+  const [divisions, setDivisions] = useState([]);
+  const [internalPick, setInternalPick] = useState('');
 
   useEffect(() => {
     listUsers().then(setUsers).catch(() => {});
+    listDivisions().then(setDivisions).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -59,9 +72,12 @@ export default function NotulenEditor() {
           conclusion: data.conclusion || '',
           discussion_content: data.discussion_manual_content || '',
           approver_id: data.approver_id || '',
+          visibility: data.visibility || 'Division',
         }));
         if (data.attendees?.length) {
           setAttendees(data.attendees.map((a) => ({
+            id: a.id,
+            user_id: a.user_id,
             name: a.name || '',
             division: a.division || '',
             is_present: a.is_present ?? true,
@@ -115,6 +131,25 @@ export default function NotulenEditor() {
     }
   };
 
+  // Peserta internal: kirim user_id saja, backend mengisi nama & divisi dari data user.
+  const handleAddInternalAttendee = async (userId) => {
+    if (!userId) return;
+    setAddingAttendee(true);
+    setError('');
+    try {
+      const added = await addAttendee(id, { user_id: Number(userId), is_present: true });
+      setAttendees((prev) => [...prev, added]);
+    } catch (err) {
+      setError(extractError(err, 'Gagal menambah peserta.'));
+    } finally {
+      setAddingAttendee(false);
+      setInternalPick('');
+    }
+  };
+
+  const divisionName = Object.fromEntries(divisions.map((d) => [d.id, d.division_name]));
+  const availableUsers = users.filter((u) => !attendees.some((a) => a.user_id === u.id));
+
   const handleActionItemChange = (index, field) => (e) => {
     const updated = [...actionItems];
     updated[index] = { ...updated[index], [field]: e.target.value };
@@ -150,7 +185,7 @@ export default function NotulenEditor() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
+    setError(extractError(err, 'Gagal menyimpan notulen. Cek kembali isi Notulen anda.'));
     setLoading(true);
 
     const payload = {
@@ -166,6 +201,7 @@ export default function NotulenEditor() {
       discussion_mode: 'manual',
       discussion_manual_content: form.discussion_content,
       approver_id: Number(form.approver_id),
+      visibility: form.visibility,
       discussion_notes: [],
       action_items: actionItems
         .filter((ai) => ai.description.trim() && ai.pic_id)
@@ -223,6 +259,16 @@ export default function NotulenEditor() {
               <option value="">Pilih approver...</option>
               {users.map((u) => <option key={u.id} value={u.id}>{u.full_name || u.name}</option>)}
             </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">Visibilitas</label>
+            <select value={form.visibility} onChange={handleChange('visibility')}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-blue-500">
+              {Object.entries(VISIBILITY_TO_LABEL).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-400 mt-1">{VISIBILITY_HINT[form.visibility]}</p>
           </div>
         </div>
 
@@ -310,7 +356,12 @@ export default function NotulenEditor() {
               <div className="space-y-2">
                 {attendees.map((a) => (
                   <div key={a.id} className="flex items-center justify-between text-sm bg-gray-50 rounded px-3 py-2">
-                    <span className="text-gray-700">{a.name}</span>
+                    <span className="text-gray-700">
+                      {a.name}
+                      {a.user_id && (
+                        <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600">Internal</span>
+                      )}
+                    </span>
                     <span className="text-gray-400 text-xs">{a.division || '-'}</span>
                     <span className={`text-xs px-2 py-0.5 rounded ${a.is_present ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                       {a.is_present ? 'Hadir' : 'Tidak Hadir'}
@@ -320,6 +371,29 @@ export default function NotulenEditor() {
                     </button>
                   </div>
                 ))}
+              </div>
+
+              <div className="pt-2 border-t border-gray-100 space-y-1.5">
+                <label className="block text-xs font-medium text-gray-700">Tambah peserta internal</label>
+                <select
+                  value={internalPick}
+                  onChange={(e) => handleAddInternalAttendee(e.target.value)}
+                  disabled={addingAttendee}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-blue-500 disabled:opacity-60"
+                >
+                  <option value="">Pilih user terdaftar...</option>
+                  {availableUsers.map((u) => {
+                    const division = divisionName[u.division_id] || u.division;
+                    return (
+                      <option key={u.id} value={u.id}>
+                        {u.full_name}{division ? ` — ${division}` : ''}
+                      </option>
+                    );
+                  })}
+                </select>
+                <p className="text-xs text-gray-400">
+                  Peserta internal punya akun, sehingga bisa membuka notulen Terbatas ini. Untuk tamu eksternal, isi nama di bawah.
+                </p>
               </div>
 
               <div className="flex gap-2 items-center pt-2 border-t border-gray-100">

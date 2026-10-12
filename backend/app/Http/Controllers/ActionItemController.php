@@ -30,6 +30,9 @@ class ActionItemController extends Controller
         if ($picId = $request->query('pic_id')) {
             $query->where('pic_id', $picId);
         }
+        if ($divisionId = $request->query('division_id')) {
+            $query->whereHas('pic', fn ($q) => $q->where('division_id', $divisionId));
+        }
 
         return $query->orderBy('deadline')
             ->paginate($request->query('per_page', 15));

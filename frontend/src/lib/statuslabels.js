@@ -30,3 +30,44 @@ export function meetingStatusLabel(status) {
 export function actionItemStatusLabel(status) {
   return ACTION_ITEM_STATUS_TO_LABEL[status] || status;
 }
+
+// ── v2 ────────────────────────────────────────────────────────────────
+
+export const ROLE_TO_LABEL = {
+  SuperAdmin: 'Super Admin',
+  AdminDivisi: 'Admin Divisi',
+  User: 'User',
+  Viewer: 'Viewer',
+};
+
+export const BOOKING_STATUS_TO_LABEL = {
+  Pending: 'Menunggu',
+  Approved: 'Disetujui',
+  Rejected: 'Ditolak',
+  Cancelled: 'Dibatalkan',
+};
+
+export const VISIBILITY_TO_LABEL = {
+  Public: 'Publik',
+  Division: 'Divisi',
+  Restricted: 'Terbatas',
+};
+
+export const UNLOCK_STATUS_TO_LABEL = {
+  None: '-',
+  Requested: 'Menunggu persetujuan unlock',
+  Approved: 'Unlock disetujui',
+  Rejected: 'Unlock ditolak',
+};
+
+export function roleLabel(role) {
+  return ROLE_TO_LABEL[role] || role || '-';
+}
+
+export function bookingStatusLabel(status) {
+  return BOOKING_STATUS_TO_LABEL[status] || status;
+}
+
+export function visibilityLabel(visibility) {
+  return VISIBILITY_TO_LABEL[visibility] || visibility;
+}

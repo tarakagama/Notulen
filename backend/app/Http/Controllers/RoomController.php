@@ -8,6 +8,7 @@ use App\Models\Meeting;
 use App\Models\Room;
 use App\Models\RoomBooking;
 use App\Models\User;
+use App\Notifications\AppNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -119,6 +120,11 @@ class RoomController extends Controller
             return $booking;
         });
 
+        // Booking user biasa menunggu persetujuan: beri tahu pengelola ruangan.
+        if ($booking->status === 'Pending') {
+            $this->notifyRoomManagers($booking, $request->user());
+        }
+
         return response()->json(
             $booking->fresh(['room', 'meeting.attendees']),
             201
@@ -159,6 +165,16 @@ class RoomController extends Controller
         });
 
         // TODO: notifikasi in-app ke host bahwa booking disetujui
+        $meeting = $roomBooking->meeting()->first();
+        if ($roomBooking->user_id !== $request->user()->id) {
+            AppNotification::send(
+                $roomBooking->host,
+                'booking.approved',
+                'Booking disetujui',
+                "{$roomBooking->title} · ".$this->slotLabel($roomBooking),
+                $meeting ? '/notulen/'.$meeting->id : '/booking'
+            );
+        }
 
         // Pengelola ruangan tidak perlu (dan tidak boleh) melihat isi notulen,
         // jadi relasi meeting hanya memuat id & status.
@@ -191,6 +207,13 @@ class RoomController extends Controller
         );
 
         // TODO: notifikasi in-app ke host bahwa booking ditolak
+        AppNotification::send(
+            $roomBooking->host,
+            'booking.rejected',
+            'Booking ditolak',
+            "{$roomBooking->title}: {$validated['review_note']}",
+            '/booking'
+        );
 
         return $roomBooking->fresh(['room']);
     }
@@ -254,10 +277,48 @@ class RoomController extends Controller
             );
         });
 
+        // Dibatalkan oleh orang lain (pengelola ruangan/SuperAdmin): beri tahu pemohon.
+        if ($roomBooking->user_id !== $user->id) {
+            AppNotification::send(
+                $roomBooking->host,
+                'booking.cancelled',
+                'Booking dibatalkan pengelola ruangan',
+                "{$roomBooking->title} · ".$this->slotLabel($roomBooking),
+                '/booking'
+            );
+        }
+
         return response()->noContent();
     }
 
     // ── Helpers ────────────────────────────────────────────────────────
+
+        private function slotLabel(RoomBooking $booking): string
+    {
+        return $booking->start_time->format('d/m/Y H:i').'–'.$booking->end_time->format('H:i');
+    }
+
+    /**
+     * Pengelola ruangan aktif; kalau belum ada yang ditunjuk, jatuh ke SuperAdmin.
+     */
+    private function notifyRoomManagers(RoomBooking $booking, User $actor): void
+    {
+        $managers = User::where('is_active', true)->where('can_manage_rooms', true)->get();
+
+        if ($managers->isEmpty()) {
+            $managers = User::where('is_active', true)->where('global_role', 'SuperAdmin')->get();
+        }
+
+        $room = Room::find($booking->room_id);
+
+        AppNotification::send(
+            $managers->reject(fn ($u) => $u->id === $actor->id),
+            'booking.pending',
+            'Booking baru menunggu persetujuan',
+            "{$actor->full_name} · {$room->room_name} · ".$this->slotLabel($booking),
+            '/booking/antrean'
+        );
+    }
 
     private function hasClash($roomId, $start, $end, ?int $exceptBookingId = null): bool
     {
@@ -273,7 +334,7 @@ class RoomController extends Controller
      * FR-RM-05: draf notulen + peserta terundang dari booking yang Approved.
      */
     private function createDraftMeeting(RoomBooking $booking): Meeting
-    {
+        {
         $room = Room::find($booking->room_id);
         $host = $booking->host()->first();
 
@@ -287,10 +348,14 @@ class RoomController extends Controller
             'start_time' => $booking->start_time->toTimeString(),
             'end_time' => $booking->end_time->toTimeString(),
             'location' => "{$room->room_name} ({$room->building} Lt. {$room->floor})",
+            // Kolom agenda wajib (NOT NULL) di tabel meetings; isi awal dari keperluan booking.
+            'agenda' => $booking->purpose ?: $booking->title,
             'discussion_mode' => 'manual',
             'status' => 'Draft',
             'visibility' => 'Division',
         ]);
+
+        $invitedUsers = [];
 
         foreach ($booking->invitee_ids ?? [] as $userId) {
             $invitedUser = User::find($userId);
@@ -313,8 +378,16 @@ class RoomController extends Controller
                 'is_present' => false,
             ]);
 
-            // TODO: kirim notifikasi undangan rapat ke $invitedUser (lihat FR-ATT-01)
+            $invitedUsers[] = $invitedUser;
         }
+
+        AppNotification::send(
+            $invitedUsers,
+            'booking.invited',
+            'Kamu diundang rapat',
+            "{$booking->title} · {$room->room_name} · ".$this->slotLabel($booking),
+            '/notulen/'.$meeting->id
+        );
 
         return $meeting;
     }
@@ -324,7 +397,6 @@ class RoomController extends Controller
         return $meeting->actionItems()->exists()
             || $meeting->allDiscussionNotes()->exists()
             || $meeting->attachments()->exists()
-            || filled($meeting->agenda)
             || filled($meeting->background)
             || filled($meeting->conclusion)
             || filled($meeting->discussion_manual_content);

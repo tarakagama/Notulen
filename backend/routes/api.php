@@ -12,13 +12,14 @@ use App\Http\Controllers\MeetingExportController;
 use App\Http\Controllers\MeetingAttachmentController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\AttendeeController;
+use App\Http\Controllers\NotificationController;
 use Illuminate\Support\Facades\Route;
 
 // ── Auth (publik, tanpa login) ────────────────────────────────────────
 Route::post('/login', [AuthController::class, 'login']);
 
 // Semua route di bawah wajib login (NFR: "Setiap aksi memerlukan login").
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'viewer.readonly'])->group(function () {
 
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
@@ -91,4 +92,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // ── Attendees (FR-1.3) ─────────────────────────────────────────────
     Route::post('/meetings/{meeting}/attendees', [AttendeeController::class, 'store']);
     Route::delete('/meetings/{meeting}/attendees/{attendee}', [AttendeeController::class, 'destroy']);
+
+    // ── Notifikasi in-app ──────────────────────────────────────────────
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead']);
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead']);
 });

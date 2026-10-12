@@ -40,7 +40,7 @@ class AuthController extends Controller
         $token = $user->createToken('momhub-web')->plainTextToken;
 
         return response()->json([
-            'user' => $user->only(['id', 'full_name', 'email', 'is_admin', 'global_role', 'division_id', 'division', 'position_title']),
+            'user' => $user->only(  ['id', 'full_name', 'email', 'is_admin', 'global_role', 'can_manage_rooms', 'division_id', 'division', 'position_title']),
             'token' => $token,
         ]);
     }
@@ -77,7 +77,7 @@ class AuthController extends Controller
 
         $request->user()->update($data);
 
-        return $request->user()->fresh()->only(['id', 'full_name', 'email', 'is_admin', 'global_role', 'division_id', 'division', 'position_title']);
+        return $request->user()->fresh()->only(  ['id', 'full_name', 'email', 'is_admin', 'global_role', 'can_manage_rooms', 'division_id', 'division', 'position_title']);
     }
 
     /**
