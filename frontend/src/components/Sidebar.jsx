@@ -2,7 +2,7 @@ import { useState } from 'react';
 import {
   LayoutDashboard, FileText, CheckSquare, Users, Settings,
   LogOut, ChevronDown, User, Lock, Bell, Printer, Building2,
-  CalendarDays, ClipboardCheck
+  CalendarDays, ClipboardCheck, DoorOpen,
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -12,6 +12,7 @@ const navItems = [
   { icon: FileText, label: 'Notulen', path: '/notulen', matchPrefix: true },
   { icon: CalendarDays, label: 'Booking Ruangan', path: '/booking' },
   { icon: ClipboardCheck, label: 'Antrean Booking', path: '/booking/antrean', roomsOnly: true },
+  { icon: DoorOpen, label: 'Kelola Ruangan', path: '/ruangan', roomsOnly: true },
   { icon: CheckSquare, label: 'Action Items', path: '/action-items', matchPrefix: true },
   { icon: Printer, label: 'Cetak Daftar Hadir', path: '/cetak-daftar-hadir' },
   { icon: Users, label: 'User Management', path: '/users', usersOnly: true },

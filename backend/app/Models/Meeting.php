@@ -32,6 +32,7 @@ class Meeting extends Model
         'visibility',
         'unlock_request_status',
         'unlock_reason',
+        'unlock_response_note',
         'source',
         'legacy_file_path',
         'legacy_text',

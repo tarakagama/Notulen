@@ -151,6 +151,25 @@ class MeetingPolicy
     }
 
     /**
+     * Menolak permohonan unlock: aturannya sama dengan menyetujui (approver atau SuperAdmin,
+     * hanya saat ada permohonan Requested pada notulen Approved).
+     */
+    public function rejectUnlock(User $user, Meeting $meeting): bool
+    {
+        return $this->approveUnlock($user, $meeting);
+    }
+
+    /**
+     * Riwayat aksi sensitif: notulis, approver, dan SuperAdmin.
+     */
+    public function viewHistory(User $user, Meeting $meeting): bool
+    {
+        return $user->isSuperAdmin()
+            || $meeting->notulis_id === $user->id
+            || $meeting->approver_id === $user->id;
+    }
+
+    /**
      * Emergency path: hanya SuperAdmin. Dipanggil dengan
      * authorize('forceUnlock', Meeting::class), jadi tanpa instance.
      */

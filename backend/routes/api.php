@@ -13,6 +13,7 @@ use App\Http\Controllers\MeetingAttachmentController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\AttendeeController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\RoomMasterController;
 use Illuminate\Support\Facades\Route;
 
 // ── Auth (publik, tanpa login) ────────────────────────────────────────
@@ -48,6 +49,8 @@ Route::middleware(['auth:sanctum', 'viewer.readonly'])->group(function () {
     // ── Alur Unlock Notulen (FR-APP-03, FR-APP-04) ─────────────────────
     Route::post('/meetings/{meeting}/request-unlock', [MeetingController::class, 'requestUnlock']);
     Route::post('/meetings/{meeting}/approve-unlock', [MeetingController::class, 'approveUnlock']);
+    Route::post('/meetings/{meeting}/reject-unlock', [MeetingController::class, 'rejectUnlock']);
+    Route::get('/meetings/{meeting}/history', [MeetingController::class, 'history']);
     Route::post('/meetings/{meeting}/force-unlock', [MeetingController::class, 'forceUnlock']);
 
     // ── Master Divisi (FR-ORG-01) ──────────────────────────────────────
@@ -59,6 +62,11 @@ Route::middleware(['auth:sanctum', 'viewer.readonly'])->group(function () {
     // ── Room & Booking -----────────────────────────────────────────────
     Route::get('/rooms', [RoomController::class, 'index']);
     Route::get('/rooms/availability', [RoomController::class, 'availability']);
+    Route::get('/rooms/today', [RoomController::class, 'today']);
+    Route::get('/booking-settings', [RoomController::class, 'settings']);
+    Route::post('/rooms', [RoomMasterController::class, 'store']);
+    Route::put('/rooms/{room}', [RoomMasterController::class, 'update']);
+    Route::delete('/rooms/{room}', [RoomMasterController::class, 'destroy']);
     Route::get('/room-bookings', [RoomController::class, 'bookings']);
     Route::post('/room-bookings', [RoomController::class, 'store']);
     Route::post('/room-bookings/{roomBooking}/approve', [RoomController::class, 'approve']);
@@ -91,6 +99,7 @@ Route::middleware(['auth:sanctum', 'viewer.readonly'])->group(function () {
 
     // ── Attendees (FR-1.3) ─────────────────────────────────────────────
     Route::post('/meetings/{meeting}/attendees', [AttendeeController::class, 'store']);
+    Route::patch('/meetings/{meeting}/attendees/{attendee}', [AttendeeController::class, 'update']);
     Route::delete('/meetings/{meeting}/attendees/{attendee}', [AttendeeController::class, 'destroy']);
 
     // ── Notifikasi in-app ──────────────────────────────────────────────

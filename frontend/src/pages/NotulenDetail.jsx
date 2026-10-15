@@ -3,12 +3,15 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Calendar, CalendarDays, MapPin, User, Edit, Download, Send, Check, X, Trash2, AlertTriangle, Lock } from 'lucide-react';
 import {
   getMeeting, submitMeeting, approveMeeting, rejectMeeting, exportMeetingPdf, deleteMeeting,
-  requestUnlock, approveUnlock, forceUnlock,
+  requestUnlock, approveUnlock, rejectUnlock, forceUnlock,
 } from '../api/meetings';
 import { useAuth } from '../context/AuthContext';
 import { meetingStatusLabel, visibilityLabel } from '../lib/statuslabels';
 import { extractError } from '../lib/errors';
 import Modal from '../components/Modal';
+import AttendanceBadge from '../components/AttendanceBadge';
+import RejectUnlockModal from '../components/RejectUnlockModal';
+import MeetingHistory from '../components/MeetingHistory';
 
 const statusStyle = {
   Draft: 'bg-yellow-50 text-yellow-700',
@@ -39,6 +42,7 @@ export default function NotulenDetail() {
   const [unlockOpen, setUnlockOpen] = useState(false);
   const [unlockReason, setUnlockReason] = useState('');
   const [unlockError, setUnlockError] = useState('');
+  const [rejectUnlockOpen, setRejectUnlockOpen] = useState(false);
 
   useEffect(() => {
     load();
@@ -74,6 +78,8 @@ export default function NotulenDetail() {
   const canApproveUnlock = unlockRequested && (isApprover || isSuperAdmin);
   const canForceUnlock = isSuperAdmin && meeting?.status === 'Approved' && !unlockRequested;
   const reopened = meeting?.status === 'Draft' && meeting?.unlock_request_status === 'Approved';
+  const unlockRejected = meeting?.status === 'Approved' && meeting?.unlock_request_status === 'Rejected';
+  const canViewHistory = isOwner || isApprover || isSuperAdmin;
 
   async function handleSubmit() {
     setActionLoading(true);
@@ -143,6 +149,13 @@ export default function NotulenDetail() {
     } finally {
       setActionLoading(false);
     }
+  }
+
+  // Dilempar ke RejectUnlockModal: error ditampilkan di dalam modal.
+  async function handleRejectUnlock(note) {
+    await rejectUnlock(meeting.id, note);
+    setRejectUnlockOpen(false);
+    load();
   }
 
   async function handleForceUnlock() {
@@ -254,6 +267,17 @@ export default function NotulenDetail() {
 
           {canApproveUnlock && (
             <button
+              onClick={() => setRejectUnlockOpen(true)}
+              disabled={actionLoading}
+              className="flex items-center gap-2 text-sm text-red-600 border border-red-300 rounded px-4 py-2 hover:bg-red-50 disabled:opacity-50"
+            >
+              <X size={15} strokeWidth={1.75} />
+              Tolak Unlock
+            </button>
+          )}
+
+          {canApproveUnlock && (
+            <button
               onClick={handleApproveUnlock}
               disabled={actionLoading}
               className="flex items-center gap-2 text-sm text-white bg-green-600 rounded px-4 py-2 hover:bg-green-700 disabled:opacity-50"
@@ -318,6 +342,21 @@ export default function NotulenDetail() {
                 ? 'Menunggu approver menyetujui permohonanmu.'
                 : 'Notulen tetap terkunci sampai permohonan ini diproses.'}
           </p>
+        </div>
+      )}
+
+      {unlockRejected && (
+        <div className="bg-red-50 border border-red-200 rounded px-4 py-3 text-sm text-red-800">
+          <p className="font-medium flex items-center gap-2">
+            <Lock size={15} />
+            Permohonan unlock ditolak
+          </p>
+          {meeting.unlock_response_note && (
+            <p className="mt-1 text-xs whitespace-pre-line">Alasan: {meeting.unlock_response_note}</p>
+          )}
+          {isOwner && (
+            <p className="mt-1 text-xs opacity-80">Notulen tetap terkunci. Kamu bisa mengajukan unlock lagi dengan alasan yang lebih lengkap.</p>
+          )}
         </div>
       )}
 
@@ -442,9 +481,7 @@ export default function NotulenDetail() {
                     </td>
                     <td className="py-2 text-gray-500">{a.division || '-'}</td>
                     <td className="py-2">
-                      <span className={`text-xs px-2 py-0.5 rounded ${a.is_present ? 'bg-green-50 text-green-700' : 'bg-gray-50 text-gray-500'}`}>
-                        {a.is_present ? 'Hadir' : 'Tidak Hadir'}
-                      </span>
+                      <AttendanceBadge value={a.is_present} />
                     </td>
                   </tr>
                 ))}
@@ -477,6 +514,15 @@ export default function NotulenDetail() {
           )}
         </div>
       </div>
+
+      {canViewHistory && (
+        <MeetingHistory meetingId={meeting.id} refreshKey={meeting.updated_at} />
+      )}
+
+      {rejectUnlockOpen && (
+        <RejectUnlockModal onClose={() => setRejectUnlockOpen(false)} onSubmit={handleRejectUnlock} />
+      )}
+      
       {rejectOpen && (
       <Modal title="Tolak Notulen" onClose={() => setRejectOpen(false)}>
         <p className="text-sm text-gray-600 mb-3">

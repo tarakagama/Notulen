@@ -14,7 +14,7 @@ class MeetingExportController extends Controller
     {
         $this->authorize('export', $meeting);
 
-        $meeting->load(['notulis', 'approver', 'attendees', 'discussionNotes.childNotesRecursive', 'actionItems.pic']);
+        $meeting->load(['notulis', 'approver', 'attendees', 'attachments', 'discussionNotes.childNotesRecursive', 'actionItems.pic']);
 
         $pdf = Pdf::loadView('pdf.meeting-pdf', ['meeting' => $meeting])
             ->setPaper('a4', 'portrait');

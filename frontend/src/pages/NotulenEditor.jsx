@@ -4,7 +4,7 @@ import { ArrowLeft, Save, Plus, Trash2, Upload, X } from 'lucide-react';
 import {
   createMeeting, getMeeting, updateMeeting,
   uploadAttachment, deleteAttachment,
-  addAttendee, removeAttendee,
+  addAttendee, updateAttendee, removeAttendee,
 } from '../api/meetings';
 import { listUsers } from '../api/users';
 import { listDivisions } from '../api/divisions';
@@ -18,6 +18,10 @@ const VISIBILITY_HINT = {
   Division: 'Setelah disetujui, bisa dilihat user di divisimu.',
   Restricted: 'Hanya notulis, approver, peserta internal (akun terdaftar), dan Admin. Tamu eksternal yang diketik manual tidak punya akses.',
 };
+
+// Presensi tiga keadaan. Di <select>: '' = belum dikonfirmasi, 'true' = hadir, 'false' = tidak hadir.
+const toPresence = (value) => (value === '' ? null : value === 'true');
+const presenceValue = (v) => (v === null || v === undefined ? '' : String(v));
 
 export default function NotulenEditor() {
   const { id } = useParams();
@@ -43,11 +47,11 @@ export default function NotulenEditor() {
     visibility: 'Division',
   });
 
-  const [attendees, setAttendees] = useState([{ name: '', division: '', is_present: true }]);
+  const [attendees, setAttendees] = useState([{ name: '', division: '', is_present: null }]);
   const [actionItems, setActionItems] = useState([]);
   const [attachments, setAttachments] = useState([]);
   const [uploadingFile, setUploadingFile] = useState(false);
-  const [newAttendee, setNewAttendee] = useState({ name: '', division: '', is_present: true });
+  const [newAttendee, setNewAttendee] = useState({ name: '', division: '', is_present: '' });
   const [addingAttendee, setAddingAttendee] = useState(false);
   const [divisions, setDivisions] = useState([]);
   const [internalPick, setInternalPick] = useState('');
@@ -80,7 +84,7 @@ export default function NotulenEditor() {
             user_id: a.user_id,
             name: a.name || '',
             division: a.division || '',
-            is_present: a.is_present ?? true,
+            is_present: a.is_present ?? null,
           })));
         }
         if (data.action_items?.length) {
@@ -112,9 +116,13 @@ export default function NotulenEditor() {
     setAddingAttendee(true);
     setError('');
     try {
-      const added = await addAttendee(id, newAttendee);
+      const added = await addAttendee(id, {
+        name: newAttendee.name,
+        division: newAttendee.division,
+        is_present: toPresence(newAttendee.is_present),
+      });
       setAttendees((prev) => [...prev, added]);
-      setNewAttendee({ name: '', division: '', is_present: true });
+      setNewAttendee({ name: '', division: '', is_present: '' });
     } catch (err) {
       setError(err.response?.data?.message || 'Gagal menambah peserta.');
     } finally {
@@ -131,13 +139,26 @@ export default function NotulenEditor() {
     }
   };
 
+  // Notulis mengonfirmasi presensi peserta (disimpan langsung, dikembalikan kalau gagal).
+  const handleAttendanceChange = async (attendee, value) => {
+    const next = toPresence(value);
+    const previous = attendee.is_present;
+    setAttendees((prev) => prev.map((a) => (a.id === attendee.id ? { ...a, is_present: next } : a)));
+    try {
+      await updateAttendee(id, attendee.id, next);
+    } catch (err) {
+      setAttendees((prev) => prev.map((a) => (a.id === attendee.id ? { ...a, is_present: previous } : a)));
+      setError(extractError(err, 'Gagal mengubah kehadiran.'));
+    }
+  };
+
   // Peserta internal: kirim user_id saja, backend mengisi nama & divisi dari data user.
   const handleAddInternalAttendee = async (userId) => {
     if (!userId) return;
     setAddingAttendee(true);
     setError('');
     try {
-      const added = await addAttendee(id, { user_id: Number(userId), is_present: true });
+            const added = await addAttendee(id, { user_id: Number(userId) }); // presensi dikonfirmasi notulis kemudian
       setAttendees((prev) => [...prev, added]);
     } catch (err) {
       setError(extractError(err, 'Gagal menambah peserta.'));
@@ -185,8 +206,9 @@ export default function NotulenEditor() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(extractError(err, 'Gagal menyimpan notulen. Cek kembali isi Notulen anda.'));
+    setError('');
     setLoading(true);
+
 
     const payload = {
       meeting_title: form.meeting_title,
@@ -225,12 +247,11 @@ export default function NotulenEditor() {
       }
       navigate('/notulen');
     } catch (err) {
-      setError(err.response?.data?.message || 'Gagal menyimpan notulen. Cek kembali isian kamu.');
+      setError(extractError(err, 'Gagal menyimpan notulen. Cek kembali isian kamu.'));
     } finally {
       setLoading(false);
     }
   };
-
   return (
     <div className="space-y-4">
       <button onClick={() => navigate('/notulen')} className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900">
@@ -363,9 +384,15 @@ export default function NotulenEditor() {
                       )}
                     </span>
                     <span className="text-gray-400 text-xs">{a.division || '-'}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded ${a.is_present ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                      {a.is_present ? 'Hadir' : 'Tidak Hadir'}
-                    </span>
+                    <select
+                      value={presenceValue(a.is_present)}
+                      onChange={(e) => handleAttendanceChange(a, e.target.value)}
+                      className="text-xs border border-gray-300 rounded px-2 py-1 bg-white focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="">Belum dikonfirmasi</option>
+                      <option value="true">Hadir</option>
+                      <option value="false">Tidak Hadir</option>
+                    </select>
                     <button type="button" onClick={() => handleRemoveAttendee(a.id)} className="text-gray-400 hover:text-red-600">
                       <Trash2 size={15} strokeWidth={1.75} />
                     </button>
@@ -403,12 +430,15 @@ export default function NotulenEditor() {
                 <input type="text" placeholder="Divisi" value={newAttendee.division}
                   onChange={(e) => setNewAttendee({ ...newAttendee, division: e.target.value })}
                   className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-blue-500" />
-                <label className="flex items-center gap-1.5 text-xs text-gray-600 whitespace-nowrap">
-                  <input type="checkbox" checked={newAttendee.is_present}
-                    onChange={(e) => setNewAttendee({ ...newAttendee, is_present: e.target.checked })}
-                    className="w-4 h-4 accent-[#0f2557]" />
-                  Hadir
-                </label>
+                <select
+                  value={newAttendee.is_present}
+                  onChange={(e) => setNewAttendee({ ...newAttendee, is_present: e.target.value })}
+                  className="px-2 py-2 text-xs border border-gray-300 rounded bg-white focus:outline-none focus:border-blue-500"
+                >
+                  <option value="">Belum dikonfirmasi</option>
+                  <option value="true">Hadir</option>
+                  <option value="false">Tidak Hadir</option>
+                </select>
                 <button type="button" onClick={handleAddAttendee} disabled={addingAttendee}
                   className="text-xs text-white bg-[#0f2557] rounded px-3 py-2 hover:bg-[#0c1e47] disabled:opacity-60 whitespace-nowrap">
                   {addingAttendee ? 'Menambah...' : 'Tambah'}

@@ -55,6 +55,23 @@ class AttendeeController extends Controller
         return response()->json($attendee, 201);
     }
 
+    /**
+     * Notulis mengonfirmasi presensi: true = Hadir, false = Tidak Hadir, null = Belum dikonfirmasi.
+     */
+    public function update(Request $request, Meeting $meeting, MeetingAttendee $attendee)
+    {
+        $this->authorize('update', $meeting);
+        abort_unless($attendee->meeting_id === $meeting->id, 404);
+
+        $validated = $request->validate([
+            'is_present' => ['present', 'nullable', 'boolean'],
+        ]);
+
+        $attendee->update(['is_present' => $validated['is_present']]);
+
+        return $attendee->fresh();
+    }
+
     public function destroy(Meeting $meeting, MeetingAttendee $attendee)
     {
         $this->authorize('update', $meeting);

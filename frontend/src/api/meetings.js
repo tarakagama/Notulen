@@ -96,3 +96,24 @@ export async function forceUnlock(id) {
   const { data } = await api.post(`/meetings/${id}/force-unlock`);
   return data;
 }
+
+// ── Tolak unlock & riwayat notulen ───────────────────────────────────
+
+// Approver / SuperAdmin menolak permohonan unlock. Alasan wajib (maks 1000 karakter).
+export async function rejectUnlock(id, responseNote) {
+  const { data } = await api.post(`/meetings/${id}/reject-unlock`, { response_note: responseNote });
+  return data;
+}
+
+// Riwayat aksi sensitif (notulis, approver, SuperAdmin):
+// [{ id, action, user, created_at, detail, changed_fields }]
+export async function getMeetingHistory(id) {
+  const { data } = await api.get(`/meetings/${id}/history`);
+  return data;
+}
+
+// Konfirmasi presensi peserta: true = Hadir, false = Tidak Hadir, null = Belum dikonfirmasi.
+export async function updateAttendee(meetingId, attendeeId, isPresent) {
+  const { data } = await api.patch(`/meetings/${meetingId}/attendees/${attendeeId}`, { is_present: isPresent });
+  return data;
+}

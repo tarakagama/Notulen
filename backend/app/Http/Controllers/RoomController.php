@@ -9,18 +9,35 @@ use App\Models\Room;
 use App\Models\RoomBooking;
 use App\Models\User;
 use App\Notifications\AppNotification;
+use Illuminate\Support\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
+
 class RoomController extends Controller
 {
     public function index(Request $request)
     {
-        return Room::where('is_active', true)
-            ->orderBy('building')->orderBy('floor')->orderBy('room_name')
-            ->get();
+        // Pengelola ruangan boleh meminta semua ruangan (termasuk nonaktif) untuk halaman Kelola Ruangan.
+        $manage = $request->boolean('include_inactive') && $request->user()->canManageRooms();
+
+        $query = Room::query()
+            ->when(! $manage, fn ($q) => $q->where('is_active', true))
+            ->orderBy('building')->orderBy('floor')->orderBy('room_name');
+
+        if ($manage) {
+            // Booking mendatang dibandingkan dengan jam dinding Jakarta, karena jam booking
+            // disimpan apa adanya tanpa konversi zona.
+            $now = now('Asia/Jakarta')->format('Y-m-d H:i:s');
+
+            $query->withCount(['bookings as upcoming_bookings_count' => fn ($q) => $q
+                ->whereIn('status', ['Pending', 'Approved'])
+                ->where('end_time', '>=', $now)]);
+        }
+
+        return $query->get();
     }
 
     /**
@@ -90,6 +107,9 @@ class RoomController extends Controller
             'attendee_user_ids.*' => ['exists:users,id'],
             'approver_id' => ['nullable', 'exists:users,id'],
         ]);
+
+        // Jam operasional: satu hari yang sama dan di antara jam buka dan jam tutup.
+        $this->assertWithinOfficeHours($validated['start_time'], $validated['end_time']);
 
         // FR-RM-04: tolak kalau bentrok dengan booking Approved/Pending lain di ruangan sama
         if ($this->hasClash($validated['room_id'], $validated['start_time'], $validated['end_time'])) {
@@ -291,6 +311,92 @@ class RoomController extends Controller
         return response()->noContent();
     }
 
+    /**
+     * Jam operasional booking untuk halaman Booking dan Dashboard.
+     */
+    public function settings()
+    {
+        return [
+            'open_time' => config('booking.open_time'),
+            'close_time' => config('booking.close_time'),
+        ];
+    }
+
+    /**
+     * Ketersediaan semua ruangan aktif untuk hari ini (kartu di Dashboard).
+     * Memakai jam dinding Jakarta, karena jam booking disimpan apa adanya tanpa konversi zona.
+     * status: available (kosong sekarang), in_use (sedang dipakai), closed (di luar jam operasional).
+     */
+    public function today()
+    {
+        $now = now('Asia/Jakarta');
+        $nowStamp = $now->format('Y-m-d H:i:s');
+        $open = config('booking.open_time');
+        $close = config('booking.close_time');
+        $isOpen = $now->format('H:i') >= $open && $now->format('H:i') < $close;
+
+        // Booking hari ini yang belum selesai (Approved dan Pending sama-sama memakai slot).
+        $bookings = RoomBooking::whereIn('status', ['Approved', 'Pending'])
+            ->whereDate('start_time', $now->toDateString())
+            ->where('end_time', '>', $nowStamp)
+            ->orderBy('start_time')
+            ->get()
+            ->groupBy('room_id');
+
+        $rooms = Room::where('is_active', true)
+            ->orderBy('building')->orderBy('floor')->orderBy('room_name')
+            ->get()
+            ->map(function ($room) use ($bookings, $nowStamp, $isOpen) {
+                $list = $bookings->get($room->id, collect());
+                $current = $list->first(fn ($b) => $b->start_time->format('Y-m-d H:i:s') <= $nowStamp);
+                $next = $list->first(fn ($b) => $b->start_time->format('Y-m-d H:i:s') > $nowStamp);
+
+                return [
+                    'id' => $room->id,
+                    'room_name' => $room->room_name,
+                    'building' => $room->building,
+                    'floor' => $room->floor,
+                    'capacity' => $room->capacity,
+                    'facilities' => $room->facilities,
+                    'status' => ! $isOpen ? 'closed' : ($current ? 'in_use' : 'available'),
+                    'busy_until' => $current?->end_time->format('H:i'),
+                    'next_start' => $next?->start_time->format('H:i'),
+                ];
+            })
+            ->values();
+
+        return [
+            'now' => $now->format('Y-m-d H:i'),
+            'open_time' => $open,
+            'close_time' => $close,
+            'is_open' => $isOpen,
+            'rooms' => $rooms,
+        ];
+    }
+
+    /**
+     * Booking harus selesai di hari yang sama dan berada di antara jam buka dan jam tutup.
+     */
+    private function assertWithinOfficeHours(string $start, string $end): void
+    {
+        $startAt = Carbon::parse($start);
+        $endAt = Carbon::parse($end);
+        $open = config('booking.open_time');
+        $close = config('booking.close_time');
+
+        if (! $startAt->isSameDay($endAt)) {
+            throw ValidationException::withMessages([
+                'end_time' => ['Booking harus selesai di hari yang sama.'],
+            ]);
+        }
+
+        if ($startAt->format('H:i') < $open || $endAt->format('H:i') > $close) {
+            throw ValidationException::withMessages([
+                'start_time' => ["Booking hanya bisa antara pukul {$open} dan {$close}."],
+            ]);
+        }
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────
 
         private function slotLabel(RoomBooking $booking): string
@@ -348,6 +454,7 @@ class RoomController extends Controller
             'start_time' => $booking->start_time->toTimeString(),
             'end_time' => $booking->end_time->toTimeString(),
             'location' => "{$room->room_name} ({$room->building} Lt. {$room->floor})",
+            'is_present' => null, // belum dikonfirmasi; notulis yang menandai Hadir/Tidak Hadir
             // Kolom agenda wajib (NOT NULL) di tabel meetings; isi awal dari keperluan booking.
             'agenda' => $booking->purpose ?: $booking->title,
             'discussion_mode' => 'manual',

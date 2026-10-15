@@ -1,5 +1,4 @@
-// Backend pakai enum Inggris, UI kamu udah didesain pakai label Indonesia.
-// File ini jembatannya — dipakai di semua halaman yang nampilin status.
+// File ini penghubung yang dipakai di semua halaman yang nampilin status.
 
 export const MEETING_STATUS_TO_LABEL = {
   Draft: 'Draft',

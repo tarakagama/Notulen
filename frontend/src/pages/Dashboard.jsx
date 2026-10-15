@@ -5,6 +5,7 @@ import { fetchDashboardSummary, fetchTopOverdue } from '../api/dashboard';
 import { listMeetings } from '../api/meetings';
 import { meetingStatusLabel } from '../lib/statuslabels';
 import MeetingCalendar from '../components/MeetingCalendar';
+import RoomAvailabilityCard from '../components/RoomAvailabilityCard';
 
 const STATUS_STYLE = {
   Draft: 'bg-yellow-50 text-yellow-700',
@@ -88,6 +89,7 @@ export default function Dashboard() {
           <div className="h-full bg-green-600" style={{ width: `${completionRate}%` }} />
         </div>
       </div>
+      <RoomAvailabilityCard />
       <MeetingCalendar />
       <div className="grid grid-cols-3 gap-6">
         {/* Notulen terbaru */}

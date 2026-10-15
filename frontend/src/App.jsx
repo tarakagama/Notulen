@@ -13,6 +13,7 @@ import Users from './pages/Users';
 import Divisions from './pages/Divisions';
 import Booking from './pages/Booking';
 import BookingQueue from './pages/BookingQueue';
+import RoomsManage from './pages/RoomsManage';
 import Settings from './pages/Settings';
 import NotulenDetail from './pages/NotulenDetail';
 import NotulenEditor from './pages/NotulenEditor';
@@ -41,6 +42,7 @@ export default function App() {
             {/* Hanya pengelola ruangan (dan Super Admin) */}
             <Route element={<RequireRole check={(a) => a.canManageRooms} />}>
               <Route path="/booking/antrean" element={<DashboardLayout title="Antrean Booking"><BookingQueue /></DashboardLayout>} />
+              <Route path="/ruangan" element={<DashboardLayout title="Kelola Ruangan"><RoomsManage /></DashboardLayout>} />
             </Route>
 
             {/* Super Admin dan Admin Divisi (Admin Divisi hanya mengelola divisinya) */}
@@ -51,6 +53,7 @@ export default function App() {
             {/* Hanya Super Admin */}
             <Route element={<RequireRole check={(a) => a.isSuperAdmin} />}>
               <Route path="/divisi" element={<DashboardLayout title="Divisi"><Divisions /></DashboardLayout>} />
+              <Route path="/ruangan" element={<DashboardLayout title="Kelola Ruangan"><RoomsManage /></DashboardLayout>} />
             </Route>
           </Route>
 

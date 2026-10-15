@@ -6,7 +6,7 @@ import Pagination from '../components/Pagination';
 import BookingStatusBadge from '../components/BookingStatusBadge';
 import InviteePicker from '../components/InviteePicker';
 import { useAuth } from '../context/AuthContext';
-import { getAvailability, createBooking, listBookings, cancelBooking } from '../api/rooms';
+import { getAvailability, createBooking, listBookings, cancelBooking, getBookingSettings } from '../api/rooms';
 import { listUsers } from '../api/users';
 import { extractError } from '../lib/errors';
 import { formatRange, toApiDateTime, todayString } from '../lib/datetime';
@@ -63,7 +63,18 @@ function FindRoom({ canBook, onViewMine }) {
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [result, setResult] = useState(null);
 
-  const validRange = !!date && !!startTime && !!endTime && endTime > startTime;
+  // Jam operasional diambil dari server (config/booking.php); nilai awal dipakai kalau gagal dimuat.
+  const [hours, setHours] = useState({ open_time: '08:00', close_time: '18:00' });
+
+  const orderOk = !!startTime && !!endTime && endTime > startTime;
+  const withinHours = !!startTime && !!endTime
+    && startTime >= hours.open_time && endTime <= hours.close_time;
+  const validRange = !!date && orderOk && withinHours;
+  const rangeError = !orderOk
+    ? 'Jam selesai harus setelah jam mulai.'
+    : !withinHours
+      ? `Booking hanya bisa antara pukul ${hours.open_time} dan ${hours.close_time}.`
+      : '';
 
   const loadAvailability = useCallback(() => {
     if (!validRange) {
@@ -82,6 +93,10 @@ function FindRoom({ canBook, onViewMine }) {
   }, [date, startTime, endTime, validRange]);
 
   useEffect(() => { loadAvailability(); }, [loadAvailability]);
+
+  useEffect(() => {
+    getBookingSettings().then(setHours).catch(() => {});
+  }, []);
 
   useEffect(() => {
     listUsers().then((data) => setUsers(data.data || data)).catch(() => {});
@@ -109,6 +124,8 @@ function FindRoom({ canBook, onViewMine }) {
             type="time"
             value={startTime}
             step={900}
+            min={hours.open_time}
+            max={hours.close_time}
             onChange={(e) => setStartTime(e.target.value)}
             className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-blue-500"
           />
@@ -119,12 +136,16 @@ function FindRoom({ canBook, onViewMine }) {
             type="time"
             value={endTime}
             step={900}
+            min={hours.open_time}
+            max={hours.close_time}
             onChange={(e) => setEndTime(e.target.value)}
             className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-blue-500"
           />
         </div>
-        {!validRange && (
-          <p className="text-xs text-red-600 pb-2">Jam selesai harus setelah jam mulai.</p>
+        {rangeError ? (
+          <p className="text-xs text-red-600 pb-2">{rangeError}</p>
+        ) : (
+          <p className="text-xs text-gray-400 pb-2">Jam booking {hours.open_time}–{hours.close_time}</p>
         )}
       </div>
 
