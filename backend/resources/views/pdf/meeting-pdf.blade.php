@@ -25,6 +25,14 @@
     };
     $scanImages  = $imagesOf('Scan Daftar Hadir', 1600); // scan butuh lebih tajam supaya tulisan terbaca
     $photoImages = $imagesOf('Dokumentasi Foto', 1200);
+    // Skala gambar (data URI atau path) agar muat di kotak lebar×tinggi (pt) tanpa menggepengkan
+    $fit = function ($src, $boxW, $boxH) {
+        $raw = str_starts_with($src, 'data:') ? base64_decode(substr($src, strpos($src, ',') + 1)) : @file_get_contents($src);
+        $size = $raw ? @getimagesizefromstring($raw) : false;
+        [$iw, $ih] = ($size && $size[0] > 0 && $size[1] > 0) ? [$size[0], $size[1]] : [4, 3];
+        $scale = min($boxW / $iw, $boxH / $ih);
+        return [round($iw * $scale, 1), round($ih * $scale, 1)];
+    };
 
     // Huruf bagian (A, B, C, ...) dihitung otomatis, bagian kosong dilewati
     $letterIndex = 0;
@@ -103,8 +111,7 @@
     table.att th, table.att td { border: 0.48pt solid #000; padding: 0 5.4pt; height: 24pt; vertical-align: middle; font-size: 10pt; line-height: 12pt; }
     table.att th { font-weight: bold; text-align: center; background: #fff; height: 22pt; }
     table.att td.c { text-align: center; }
-    .scan { display: block; width: 467.6pt; margin: 1pt 0 0 21.3pt; }
-    .foto { display: block; width: 453.5pt; margin: 0.9pt 0 0 21.3pt; }
+    .scan, .foto { display: block; }
 </style>
 </head>
 <body>
@@ -155,7 +162,8 @@
         <div class="sec newpage d"><span class="no">{{ $nextLetter() }}.</span><span class="ttl">DAFTAR HADIR</span></div>
         @if(count($scanImages) > 0)
             @foreach($scanImages as $i => $img)
-                <img class="scan" src="{{ $img }}" alt="Scan daftar hadir" style="{{ $i > 0 ? 'page-break-before: always;' : '' }}">
+                @php [$w, $h] = $fit($img, 467.6, 650); @endphp
+                <img class="scan" src="{{ $img }}" alt="Scan daftar hadir" style="width: {{ $w }}pt; height: {{ $h }}pt; margin: 1pt 0 0 {{ round(21.3 + (467.6 - $w) / 2, 1) }}pt; {{ $i > 0 ? 'page-break-before: always;' : '' }}">
             @endforeach
         @elseif($meeting->attendees->isEmpty())
             <p>Tidak ada data daftar hadir digital.</p>
@@ -176,9 +184,10 @@
 
         @if(count($photoImages) > 0)
             <div class="sec newpage"><span class="no">{{ $nextLetter() }}.</span><span class="ttl">DOKUMENTASI</span></div>
-            @foreach($photoImages as $img)
-                <img class="foto" src="{{ $img }}" alt="Dokumentasi">
-            @endforeach
+        @foreach($photoImages as $img)
+            @php [$w, $h] = $fit($img, 453.5, 340); @endphp
+            <img class="foto" src="{{ $img }}" alt="Dokumentasi" style="width: {{ $w }}pt; height: {{ $h }}pt; margin: 0.9pt 0 0 {{ round(21.3 + (453.5 - $w) / 2, 1) }}pt;">
+        @endforeach
         @endif
     </div>
 </body>

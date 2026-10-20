@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, Plus, Trash2, Upload, X } from 'lucide-react';
+import { ArrowLeft, Save, Trash2, Upload, X } from 'lucide-react';
 import {
   createMeeting, getMeeting, updateMeeting,
   uploadAttachment, deleteAttachment,
@@ -12,6 +12,8 @@ import { useAuth } from '../context/AuthContext';
 import RichTextEditor from '../components/RichTextEditor';
 import { VISIBILITY_TO_LABEL } from '../lib/statuslabels';
 import { extractError } from '../lib/errors';
+import { compressImage } from '../lib/image';
+import { extractAgreementItems, guessPicId, normalizeText } from '../lib/agreements';
 
 const VISIBILITY_HINT = {
   Public: 'Setelah disetujui, bisa dilihat semua user.',
@@ -48,7 +50,8 @@ export default function NotulenEditor() {
   });
 
   const [attendees, setAttendees] = useState([{ name: '', division: '', is_present: null }]);
-  const [actionItems, setActionItems] = useState([]);
+  // PIC/tenggat/prioritas per butir kesepakatan; kuncinya teks butir
+  const [itemMeta, setItemMeta] = useState({});
   const [attachments, setAttachments] = useState([]);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [newAttendee, setNewAttendee] = useState({ name: '', division: '', is_present: '' });
@@ -78,21 +81,23 @@ export default function NotulenEditor() {
           approver_id: data.approver_id || '',
           visibility: data.visibility || 'Division',
         }));
-        if (data.attendees?.length) {
-          setAttendees(data.attendees.map((a) => ({
-            id: a.id,
-            user_id: a.user_id,
-            name: a.name || '',
-            division: a.division || '',
-            is_present: a.is_present ?? null,
-          })));
-        }
+        setAttendees((data.attendees || []).map((a) => ({
+          id: a.id,
+          user_id: a.user_id,
+          name: a.name || '',
+          division: a.division || '',
+          is_present: a.is_present ?? null,
+        })));
         if (data.action_items?.length) {
-          setActionItems(data.action_items.map((ai) => ({
-            description: ai.description || '',
-            pic_id: ai.pic_id || '',
-            deadline: ai.deadline?.slice(0, 10) || '',
-            priority: ai.priority || 'Medium',
+          const seen = {};
+          setItemMeta(Object.fromEntries(data.action_items.map((ai) => {
+            const text = normalizeText(ai.description);
+            seen[text] = (seen[text] ?? -1) + 1;
+            return [`${text}#${seen[text]}`, {
+              pic_id: ai.pic_id || '',
+              deadline: ai.deadline?.slice(0, 10) || '',
+              priority: ai.priority || 'Medium',
+            }];
           })));
         }
         setAttachments(data.attachments || []);
@@ -171,13 +176,35 @@ export default function NotulenEditor() {
   const divisionName = Object.fromEntries(divisions.map((d) => [d.id, d.division_name]));
   const availableUsers = users.filter((u) => !attendees.some((a) => a.user_id === u.id));
 
-  const handleActionItemChange = (index, field) => (e) => {
-    const updated = [...actionItems];
-    updated[index] = { ...updated[index], [field]: e.target.value };
-    setActionItems(updated);
+  // Butir kesepakatan diambil langsung dari editor; tiap butir otomatis jadi action item.
+  const seen = {};
+  const agreementItems = extractAgreementItems(form.conclusion).map((text) => {
+    seen[text] = (seen[text] ?? -1) + 1;
+    const key = `${text}#${seen[text]}`; // butir kembar dibedakan lewat urutannya
+    const meta = itemMeta[key] || {};
+    return {
+      key,
+      text,
+      pic_id: meta.pic_id ?? guessPicId(text, users),
+      deadline: meta.deadline || '',
+      priority: meta.priority || 'Medium',
+    };
+  });
+  const missingPic = agreementItems.filter((ai) => !ai.pic_id).length;
+
+  const setMeta = (key, field) => (e) => {
+    const current = agreementItems.find((ai) => ai.key === key) || {};
+    setItemMeta((prev) => ({
+      ...prev,
+      [key]: {
+        pic_id: current.pic_id,
+        deadline: current.deadline,
+        priority: current.priority,
+        ...prev[key],
+        [field]: e.target.value,
+      },
+    }));
   };
-  const addActionItemRow = () => setActionItems([...actionItems, { description: '', pic_id: '', deadline: '', priority: 'Medium' }]);
-  const removeActionItemRow = (index) => setActionItems(actionItems.filter((_, i) => i !== index));
 
   const handleFileUpload = async (e, fileType) => {
     const file = e.target.files[0];
@@ -185,7 +212,11 @@ export default function NotulenEditor() {
     setUploadingFile(true);
     setError('');
     try {
-      const uploaded = await uploadAttachment(id, file, fileType);
+      const prepared = await compressImage(
+        file,
+        fileType === 'Scan Daftar Hadir' ? { maxSide: 2000, quality: 0.85 } : { maxSide: 1600, quality: 0.8 },
+      );
+      const uploaded = await uploadAttachment(id, prepared, fileType);
       setAttachments((prev) => [...prev, uploaded]);
     } catch (err) {
       setError(err.response?.data?.message || 'Gagal upload file.');
@@ -225,12 +256,12 @@ export default function NotulenEditor() {
       approver_id: Number(form.approver_id),
       visibility: form.visibility,
       discussion_notes: [],
-      action_items: actionItems
-        .filter((ai) => ai.description.trim() && ai.pic_id)
+      action_items: agreementItems
+        .filter((ai) => ai.pic_id)
         .map((ai) => ({
-          description: ai.description,
+          description: ai.text,
           pic_id: Number(ai.pic_id),
-          deadline: ai.deadline,
+          deadline: ai.deadline || null,
           priority: ai.priority,
         })),
       ...(!isEdit && {
@@ -309,35 +340,28 @@ export default function NotulenEditor() {
           </div>
         </div>
 
-        {/* Action Items — tidak ditampilkan di PDF, cuma masuk ke halaman Action Items */}
-        <div className="bg-white border border-gray-200 rounded p-5 space-y-4">
-          <div>
-            <h3 className="text-sm font-semibold text-gray-800">Action Items</h3>
-            <p className="text-xs text-gray-400 mt-0.5">
-              Tidak muncul di PDF notulen — hanya tercatat di halaman Action Items untuk ditindaklanjuti.
-            </p>
-          </div>
+       {/* Action Items — otomatis dari butir "Hasil Kesepakatan / Tindak Lanjut" */}
+      <div className="bg-white border border-gray-200 rounded p-5 space-y-4">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-800">Action Items</h3>
+          <p className="text-xs text-gray-400 mt-0.5">
+            Setiap butir di "Hasil Kesepakatan / Tindak Lanjut" otomatis jadi action item. Tentukan PIC, tenggat, dan prioritasnya di sini
+            (atau tulis <span className="font-mono">(PIC: Nama)</span> di butirnya agar PIC terisi sendiri).
+          </p>
+        </div>
 
+        {agreementItems.length === 0 ? (
+          <p className="text-xs text-gray-400">Belum ada butir. Tulis kesepakatan sebagai daftar di kolom di atas.</p>
+        ) : (
           <div className="space-y-3">
-            {actionItems.map((ai, i) => (
-              <div key={i} className="border border-gray-100 rounded p-3 space-y-2">
-                <div className="flex gap-2">
-                  <textarea
-                    placeholder="Deskripsi tindak lanjut"
-                    value={ai.description}
-                    onChange={handleActionItemChange(i, 'description')}
-                    rows={2}
-                    className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-blue-500 resize-none"
-                  />
-                  <button type="button" onClick={() => removeActionItemRow(i)} className="p-2 text-gray-400 hover:text-red-600 h-fit">
-                    <Trash2 size={16} strokeWidth={1.75} />
-                  </button>
-                </div>
+            {agreementItems.map((ai) => (
+              <div key={ai.key} className="border border-gray-100 rounded p-3 space-y-2">
+                <p className="text-sm text-gray-800">{ai.text}</p>
                 <div className="grid grid-cols-3 gap-2">
                   <select
                     value={ai.pic_id}
-                    onChange={handleActionItemChange(i, 'pic_id')}
-                    className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-blue-500"
+                    onChange={setMeta(ai.key, 'pic_id')}
+                    className={`px-3 py-2 text-sm border rounded focus:outline-none focus:border-blue-500 ${ai.pic_id ? 'border-gray-300' : 'border-yellow-400'}`}
                   >
                     <option value="">PIC...</option>
                     {users.map((u) => <option key={u.id} value={u.id}>{u.full_name || u.name}</option>)}
@@ -345,12 +369,12 @@ export default function NotulenEditor() {
                   <input
                     type="date"
                     value={ai.deadline}
-                    onChange={handleActionItemChange(i, 'deadline')}
+                    onChange={setMeta(ai.key, 'deadline')}
                     className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-blue-500"
                   />
                   <select
                     value={ai.priority}
-                    onChange={handleActionItemChange(i, 'priority')}
+                    onChange={setMeta(ai.key, 'priority')}
                     className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-blue-500"
                   >
                     <option value="Low">Low</option>
@@ -361,12 +385,14 @@ export default function NotulenEditor() {
               </div>
             ))}
           </div>
+        )}
 
-          <button type="button" onClick={addActionItemRow} className="flex items-center gap-1.5 text-xs text-blue-600 hover:underline">
-            <Plus size={14} strokeWidth={1.75} />
-            Tambah Action Item
-          </button>
-        </div>
+        {missingPic > 0 && (
+          <p className="text-xs text-yellow-700 bg-yellow-50 border border-yellow-200 rounded px-3 py-2">
+            {missingPic} butir belum punya PIC dan belum akan tercatat sebagai action item.
+          </p>
+        )}
+      </div>
 
         {/* Daftar Hadir */}
         <div className="bg-white border border-gray-200 rounded p-5 space-y-4">

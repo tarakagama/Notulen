@@ -1,7 +1,6 @@
 import { useEditor, EditorContent } from '@tiptap/react';
 import { useEffect } from 'react';
 import StarterKit from '@tiptap/starter-kit';
-import Underline from '@tiptap/extension-underline';
 import {
   Bold as BoldIcon,
   Italic as ItalicIcon,
@@ -31,7 +30,7 @@ function ToolbarButton({ onClick, active, disabled, children, title }) {
 
 export default function RichTextEditor({ value, onChange, placeholder = 'Tulis di sini...' }) {
   const editor = useEditor({
-    extensions: [StarterKit, Underline],
+    extensions: [StarterKit],
     content: value || '',
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
     editorProps: {

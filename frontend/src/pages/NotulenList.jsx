@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Search, Filter } from 'lucide-react';
 import { listMeetings } from '../api/meetings';
-import { meetingStatusLabel, visibilityLabel } from '../lib/statuslabels';
+import { meetingStatusLabel, visibilityLabel, MEETING_STATUS_TO_LABEL } from '../lib/statuslabels';
+import { formatDate } from '../lib/datetime';
+import Pagination from '../components/Pagination';
 import { useAuth } from '../context/AuthContext';
 
 const visibilityStyle = {
@@ -18,25 +20,40 @@ const statusStyle = {
   Rejected: 'bg-red-50 text-red-700',
 };
 
-function formatDate(isoString) {
-  if (!isoString) return '-';
-  return new Date(isoString).toLocaleDateString('id-ID', {
-    day: 'numeric', month: 'short', year: 'numeric',
-  });
-}
-
 export default function NotulenList() {
   const { isViewer } = useAuth();
-  const [meetings, setMeetings] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [result, setResult] = useState({ key: null, data: null, error: '' });
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState('');
+  const [page, setPage] = useState(1);
+
+  // Tunda pencarian 350 ms supaya tidak memanggil API di setiap ketikan
+  useEffect(() => {
+    const t = setTimeout(() => { setSearch(searchInput.trim()); setPage(1); }, 350);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
+  const requestKey = `${page}|${search}|${status}`;
 
   useEffect(() => {
-    listMeetings()
-      .then((data) => setMeetings(data.data || data))
-      .catch(() => setError('Gagal memuat daftar notulen.'))
-      .finally(() => setLoading(false));
-  }, []);
+    let cancelled = false;
+    const params = { page };
+    if (search) params.search = search;
+    if (status) params.status = status;
+
+    listMeetings(params)
+      .then((res) => { if (!cancelled) setResult({ key: requestKey, data: res, error: '' }); })
+      .catch(() => { if (!cancelled) setResult((prev) => ({ ...prev, key: requestKey, error: 'Gagal memuat daftar notulen.' })); });
+
+    return () => { cancelled = true; };
+  }, [requestKey, page, search, status]);
+
+  const { data, error } = result;
+  const loading = result.key !== requestKey;
+  const meetings = data?.data || [];
+  const hasFilter = Boolean(search || status);
+  const resetFilter = () => { setSearchInput(''); setSearch(''); setStatus(''); setPage(1); };
 
   return (
     <div className="space-y-4">
@@ -46,16 +63,31 @@ export default function NotulenList() {
           <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Cari judul rapat..."
             className="pl-9 pr-4 py-2.5 text-sm border border-gray-300 rounded w-72 focus:outline-none focus:border-blue-500"
           />
         </div>
 
         <div className="flex items-center gap-3">
-          <button className="flex items-center gap-2 text-sm text-gray-600 border border-gray-300 rounded px-4 py-2.5 hover:bg-gray-50">
-            <Filter size={16} strokeWidth={1.75} />
-            Filter Status
-          </button>
+          <div className="relative">
+            <Filter size={16} strokeWidth={1.75} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+            <select
+              value={status}
+              onChange={(e) => { setStatus(e.target.value); setPage(1); }}
+              aria-label="Filter status"
+              className="appearance-none text-sm text-gray-700 border border-gray-300 rounded pl-9 pr-8 py-2.5 bg-white hover:bg-gray-50 focus:outline-none focus:border-blue-500"
+            >
+              <option value="">Semua Status</option>
+              {Object.entries(MEETING_STATUS_TO_LABEL).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </div>
+          {hasFilter && (
+            <button onClick={resetFilter} className="text-sm text-gray-500 hover:text-gray-800 underline">Reset</button>
+          )}
           {!isViewer && (
             <Link
               to="/notulen/baru"

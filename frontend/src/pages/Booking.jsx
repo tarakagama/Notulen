@@ -5,6 +5,7 @@ import Modal from '../components/Modal';
 import Pagination from '../components/Pagination';
 import BookingStatusBadge from '../components/BookingStatusBadge';
 import InviteePicker from '../components/InviteePicker';
+import RoomSchedule from '../components/RoomSchedule';
 import { useAuth } from '../context/AuthContext';
 import { getAvailability, createBooking, listBookings, cancelBooking, getBookingSettings } from '../api/rooms';
 import { listUsers } from '../api/users';
@@ -62,6 +63,7 @@ function FindRoom({ canBook, onViewMine }) {
   const [users, setUsers] = useState([]);
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [result, setResult] = useState(null);
+  const [scheduleKey, setScheduleKey] = useState(0);
 
   // Jam operasional diambil dari server (config/booking.php); nilai awal dipakai kalau gagal dimuat.
   const [hours, setHours] = useState({ open_time: '08:00', close_time: '18:00' });
@@ -157,6 +159,14 @@ function FindRoom({ canBook, onViewMine }) {
         <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded px-4 py-2.5">{error}</div>
       )}
 
+      <RoomSchedule
+        date={date}
+        reloadKey={scheduleKey}
+        openTime={hours.open_time}
+        closeTime={hours.close_time}
+        onPick={(room, start, end) => { setStartTime(start); setEndTime(end); }}
+      />
+
       {loading ? (
         <p className="text-sm text-gray-400">Memuat ketersediaan ruangan...</p>
       ) : validRange && rooms.length === 0 && !error ? (
@@ -217,10 +227,11 @@ function FindRoom({ canBook, onViewMine }) {
           endTime={endTime}
           users={otherUsers}
           onClose={() => setSelectedRoom(null)}
-          onConflict={loadAvailability}
+          onConflict={() => { setScheduleKey((k) => k + 1); loadAvailability(); }}
           onBooked={(booking) => {
             setSelectedRoom(null);
             setResult(booking);
+            setScheduleKey((k) => k + 1);
             loadAvailability();
           }}
         />

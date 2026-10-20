@@ -62,6 +62,7 @@ Route::middleware(['auth:sanctum', 'viewer.readonly'])->group(function () {
     // ── Room & Booking -----────────────────────────────────────────────
     Route::get('/rooms', [RoomController::class, 'index']);
     Route::get('/rooms/availability', [RoomController::class, 'availability']);
+    Route::get('/rooms/schedule', [RoomController::class, 'schedule']);
     Route::get('/rooms/today', [RoomController::class, 'today']);
     Route::get('/booking-settings', [RoomController::class, 'settings']);
     Route::post('/rooms', [RoomMasterController::class, 'store']);

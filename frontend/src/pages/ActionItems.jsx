@@ -44,7 +44,7 @@ export default function ActionItems() {
 
   const changeStatus = async (item, status, completion_note = null) => {
     setBusyId(item.id);
-      setError(extractError(err, 'Gagal mengubah status.'));
+    setError('');
     try {
       await updateActionItemStatus(item.id, { status, completion_note });
       load();

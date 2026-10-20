@@ -71,6 +71,38 @@ class RoomController extends Controller
     }
 
     /**
+     * Jadwal semua ruangan aktif pada satu hari (grid jam kosong/terpakai di halaman Booking).
+     */
+    public function schedule(Request $request)
+    {
+        $validated = $request->validate(['date' => ['required', 'date_format:Y-m-d']]);
+        $dayStart = $validated['date'].' 00:00:00';
+        $dayEnd   = $validated['date'].' 23:59:59';
+
+        $bookings = RoomBooking::with('host:id,full_name')
+            ->whereIn('status', ['Approved', 'Pending'])
+            ->where('start_time', '<=', $dayEnd)
+            ->where('end_time', '>=', $dayStart)
+            ->orderBy('start_time')
+            ->get()
+            ->groupBy('room_id');
+
+        return Room::where('is_active', true)
+            ->orderBy('building')->orderBy('floor')->orderBy('room_name')
+            ->get()
+            ->map(fn ($room) => [
+                ...$room->toArray(),
+                'bookings' => ($bookings[$room->id] ?? collect())->map(fn ($b) => [
+                    'id' => $b->id,
+                    'start_time' => $b->start_time->format('Y-m-d H:i:s'),
+                    'end_time' => $b->end_time->format('Y-m-d H:i:s'),
+                    'status' => $b->status,
+                    'booked_by' => $b->host?->full_name,
+                ])->values(),
+            ]);
+    }
+
+    /**
      * Daftar booking. Pengelola ruangan melihat semua (bisa filter ?status=Pending),
      * user lain hanya booking miliknya sendiri.
      */

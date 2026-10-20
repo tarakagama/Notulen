@@ -73,3 +73,9 @@ export async function getBookingSettings() {
   const { data } = await api.get('/booking-settings');
   return data;
 }
+
+// Jadwal semua ruangan aktif pada satu hari, lengkap dengan booking Approved/Pending.
+export async function getRoomSchedule(date) {
+  const { data } = await api.get('/rooms/schedule', { params: { date } });
+  return data;
+}
