@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 
 class ActionItem extends Model
 {
@@ -24,6 +25,9 @@ class ActionItem extends Model
         'priority',
         'status',
         'completion_note',
+        'verified_by',
+        'verified_at',
+        'verification_note',
         'source',
         'completed_at',
     ];
@@ -32,13 +36,14 @@ class ActionItem extends Model
      * status di database hanya Open / In Progress / Completed.
      * "Overdue" tidak disimpan, tapi dihitung dari deadline (effective_status).
      */
-    protected $appends = ['effective_status'];
+    protected $appends = ['effective_status', 'verification_status', 'completion_days_diff'];
 
     protected function casts(): array
     {
         return [
             'deadline' => 'date',
             'completed_at' => 'datetime',
+            'verified_at' => 'datetime',
         ];
     }
 
@@ -50,6 +55,68 @@ class ActionItem extends Model
     public function pic()
     {
         return $this->belongsTo(User::class, 'pic_id');
+    }
+
+    public function logs()
+    {
+        return $this->hasMany(ActionItemLog::class);
+    }
+
+    public function verifier()
+    {
+        return $this->belongsTo(User::class, 'verified_by');
+    }
+
+    /** None | Pending (menunggu verifikasi) | Verified | Rejected (dikembalikan verifikator) */
+    protected function verificationStatus(): Attribute
+    {
+        return Attribute::get(function () {
+            if ($this->status !== 'Completed') {
+                return $this->verification_note ? 'Rejected' : 'None';
+            }
+
+            return $this->verified_at ? 'Verified' : 'Pending';
+        });
+    }
+
+    /** Selisih hari selesai vs deadline: negatif = lebih cepat, 0 = tepat waktu, positif = terlambat. */
+    protected function completionDaysDiff(): Attribute
+    {
+        return Attribute::get(function () {
+            if ($this->status !== 'Completed' || ! $this->completed_at) {
+                return null;
+            }
+
+            return $this->daysFromDeadline($this->completed_at);
+        });
+    }
+
+    public function daysFromDeadline($moment = null): ?int
+    {
+        if (! $this->deadline) {
+            return null;
+        }
+
+        $day = $moment
+            ? Carbon::parse($moment)->setTimezone(self::TIMEZONE)->toDateString()
+            : self::today();
+
+        return (int) round(
+            Carbon::parse($this->deadline->toDateString())->diffInDays(Carbon::parse($day), false)
+        );
+    }
+
+    public function recordLog(string $action, ?User $user, ?string $from, ?string $to, ?string $note = null, ?int $daysDiff = null): ActionItemLog
+    {
+        return $this->logs()->create([
+            'user_id' => $user?->id,
+            'action' => $action,
+            'from_status' => $from,
+            'to_status' => $to,
+            'deadline' => $this->deadline?->toDateString(),
+            'days_diff' => $daysDiff,
+            'note' => $note,
+        ]);
     }
 
     public static function today(): string

@@ -1,14 +1,26 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
+import { listDivisions } from '../api/divisions';
 
-// Pilih banyak user: kotak cari + daftar centang + chip yang terpilih.
+// Pilih banyak user: filter divisi + kotak cari + daftar centang + chip yang terpilih.
 export default function InviteePicker({ users, selectedIds, onChange }) {
   const [query, setQuery] = useState('');
+  const [divisionId, setDivisionId] = useState('');
+  const [divisions, setDivisions] = useState([]);
+
+  useEffect(() => {
+    listDivisions().then(setDivisions).catch(() => {});
+  }, []);
+
+  const divisionName = Object.fromEntries(divisions.map((d) => [d.id, d.division_name]));
 
   const q = query.trim().toLowerCase();
   const visible = users.filter(
-    (u) => !q || (u.full_name || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q)
+    (u) =>
+      (!divisionId || String(u.division_id) === divisionId) &&
+      (!q || (u.full_name || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q))
   );
+  // Chip tetap menampilkan semua yang terpilih, walau filter divisinya sedang berganti.
   const selected = users.filter((u) => selectedIds.includes(u.id));
 
   const toggle = (id) => {
@@ -30,13 +42,25 @@ export default function InviteePicker({ users, selectedIds, onChange }) {
         </div>
       )}
 
-      <input
-        type="text"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="Cari nama atau email..."
-        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-blue-500"
-      />
+      <div className="flex gap-2">
+        <select
+          value={divisionId}
+          onChange={(e) => setDivisionId(e.target.value)}
+          className="px-3 py-2 text-sm border border-gray-300 rounded bg-white focus:outline-none focus:border-blue-500"
+        >
+          <option value="">Semua divisi</option>
+          {divisions.map((d) => (
+            <option key={d.id} value={d.id}>{d.division_name}</option>
+          ))}
+        </select>
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Cari nama atau email..."
+          className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-blue-500"
+        />
+      </div>
 
       <div className="mt-1.5 max-h-40 overflow-y-auto border border-gray-200 rounded divide-y divide-gray-50">
         {visible.length === 0 ? (
@@ -51,7 +75,7 @@ export default function InviteePicker({ users, selectedIds, onChange }) {
                 className="w-4 h-4 accent-[#0f2557]"
               />
               <span>{u.full_name}</span>
-              <span className="text-xs text-gray-400">{u.email}</span>
+              <span className="text-xs text-gray-400">{divisionName[u.division_id] || u.division || ''}</span>
             </label>
           ))
         )}

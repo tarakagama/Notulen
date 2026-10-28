@@ -28,10 +28,13 @@ export default function App() {
 
           <Route element={<ProtectedRoute />}>
             <Route path="/" element={<DashboardLayout title="Dashboard"><Dashboard /></DashboardLayout>} />
-            <Route path="/notulen" element={<DashboardLayout title="Notulen"><NotulenList /></DashboardLayout>} />
-            <Route path="/notulen/baru" element={<DashboardLayout title="Buat Notulen"><NotulenEditor /></DashboardLayout>} />
-            <Route path="/notulen/:id" element={<DashboardLayout title="Detail Notulen"><NotulenDetail /></DashboardLayout>} />
-            <Route path="/notulen/:id/edit" element={<DashboardLayout title="Edit Notulen"><NotulenEditor /></DashboardLayout>} />
+            {/* Notulen: PIC ruangan murni tidak punya akses */}
+            <Route element={<RequireRole check={(a) => !a.isRoomPic} />}>
+              <Route path="/notulen" element={<DashboardLayout title="Notulen"><NotulenList /></DashboardLayout>} />
+              <Route path="/notulen/baru" element={<DashboardLayout title="Buat Notulen"><NotulenEditor /></DashboardLayout>} />
+              <Route path="/notulen/:id" element={<DashboardLayout title="Detail Notulen"><NotulenDetail /></DashboardLayout>} />
+              <Route path="/notulen/:id/edit" element={<DashboardLayout title="Edit Notulen"><NotulenEditor /></DashboardLayout>} />
+            </Route>
             <Route path="/cetak-daftar-hadir" element={<DashboardLayout title="Cetak Daftar Hadir"><CetakDaftarHadir /></DashboardLayout>} />
             <Route path="/booking" element={<DashboardLayout title="Booking Ruangan"><Booking /></DashboardLayout>} />
             <Route path="/action-items" element={<DashboardLayout title="Action Items"><ActionItems /></DashboardLayout>} />

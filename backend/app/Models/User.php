@@ -83,6 +83,17 @@ class User extends Authenticatable implements FilamentUser, HasName
         return $this->isSuperAdmin() || (bool) $this->can_manage_rooms;
     }
 
+    /**
+     * PIC ruangan murni: hanya mengelola ruangan, tidak boleh melihat/membuat notulen.
+     * SuperAdmin dan AdminDivisi yang kebetulan punya flag can_manage_rooms tidak termasuk.
+     */
+    public function isRoomPicOnly(): bool
+    {
+        return (bool) $this->can_manage_rooms
+            && ! $this->isSuperAdmin()
+            && ! $this->isAdminDivisi();
+    }
+
     public function isSuperAdmin(): bool
     {
         return $this->global_role === 'SuperAdmin';

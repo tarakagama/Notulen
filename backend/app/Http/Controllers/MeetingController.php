@@ -359,8 +359,7 @@ class MeetingController extends Controller
             }
 
             if ($request->has('action_items')) {
-                $meeting->actionItems()->delete();
-                $this->syncActionItems($meeting, $request->input('action_items', []));
+                $this->reconcileActionItems($meeting, $request->input('action_items', []));
             }
         });
 
@@ -528,5 +527,43 @@ class MeetingController extends Controller
                 'meeting_id' => $meeting->id,
             ]);
         }
+    }
+
+    private function normalizeText(?string $text): string
+    {
+        return trim(preg_replace('/\s+/u', ' ', (string) $text));
+    }
+
+    /**
+     * Sinkronkan action item tanpa menghapus yang sudah ada: butir dengan teks yang sama
+     * dipertahankan (status, log, verifikasi tetap), hanya PIC/deadline/prioritas diperbarui.
+     * Butir baru dibuat, butir yang hilang dari editor dihapus.
+     */
+    private function reconcileActionItems(Meeting $meeting, array $items): void
+    {
+        $pool = $meeting->actionItems()->get()
+            ->groupBy(fn ($a) => $this->normalizeText($a->description));
+
+        $keep = [];
+
+        foreach ($items as $item) {
+            $match = $pool->get($this->normalizeText($item['description'] ?? ''))?->shift();
+
+            if ($match) {
+                $match->update(\Illuminate\Support\Arr::only($item, ['pic_id', 'deadline', 'priority']));
+                $keep[] = $match->id;
+
+                continue;
+            }
+
+            $created = ActionItem::create([
+                ...\Illuminate\Support\Arr::only($item, ['description', 'pic_id', 'deadline', 'priority']),
+                'source' => $item['source'] ?? 'Manual',
+                'meeting_id' => $meeting->id,
+            ]);
+            $keep[] = $created->id;
+        }
+
+        $meeting->actionItems()->whereNotIn('id', $keep)->delete();
     }
 }

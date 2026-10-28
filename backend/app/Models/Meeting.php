@@ -53,6 +53,11 @@ class Meeting extends Model
 
     public function scopeVisibleTo(Builder $query, User $user): Builder
     {
+        // PIC ruangan murni tidak boleh melihat notulen apa pun.
+        if ($user->isRoomPicOnly()) {
+            return $query->whereRaw('1 = 0');
+        }
+
         if ($user->isSuperAdmin()) {
             return $query;
         }

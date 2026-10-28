@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Loader2 } from 'lucide-react';
 import { listMeetings } from '../api/meetings';
+import { useAuth } from '../context/AuthContext';
+
 
 function formatDate(iso) {
   if (!iso) return '';
@@ -9,6 +11,7 @@ function formatDate(iso) {
 }
 
 export default function GlobalSearch() {
+  const { isRoomPic } = useAuth();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -75,6 +78,8 @@ export default function GlobalSearch() {
       setOpen(false);
     }
   };
+
+  if (isRoomPic) return null;
 
     return (
     <div className="relative" ref={boxRef}>

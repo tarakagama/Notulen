@@ -9,7 +9,7 @@ import { useAuth } from '../context/AuthContext';
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-  { icon: FileText, label: 'Notulen', path: '/notulen', matchPrefix: true },
+  { icon: FileText, label: 'Notulen', path: '/notulen', matchPrefix: true, hideForRoomPic: true },
   { icon: CalendarDays, label: 'Booking Ruangan', path: '/booking' },
   { icon: ClipboardCheck, label: 'Antrean Booking', path: '/booking/antrean', roomsOnly: true },
   { icon: DoorOpen, label: 'Kelola Ruangan', path: '/ruangan', roomsOnly: true },
@@ -32,7 +32,7 @@ const navItems = [
 export default function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { logout, isSuperAdmin, canManageRooms, canManageUsers } = useAuth();
+  const { logout, isSuperAdmin, canManageRooms, canManageUsers, isRoomPic } = useAuth();
   const [expanded, setExpanded] = useState(
     location.pathname.startsWith('/settings') ? 'Pengaturan' : null
   );
@@ -41,7 +41,8 @@ export default function Sidebar() {
     (item) =>
       (!item.superAdminOnly || isSuperAdmin) &&
       (!item.roomsOnly || canManageRooms) &&
-      (!item.usersOnly || canManageUsers)
+      (!item.usersOnly || canManageUsers) &&
+      (!item.hideForRoomPic || !isRoomPic)
   );
 
   async function handleLogout() {
@@ -103,28 +104,35 @@ export default function Sidebar() {
                 />
               </button>
 
-              {isOpen && (
-                <div className="bg-black/10">
-                  {item.children.map((child) => {
-                    const ChildIcon = child.icon;
-                    const isChildActive = location.pathname === child.path;
-                    return (
-                      <Link
-                        key={child.path}
-                        to={child.path}
-                        className={`flex items-center gap-3 pl-10 pr-5 py-2 text-xs transition-colors ${
-                          isChildActive
-                            ? 'text-white font-medium'
-                            : 'text-blue-200/60 hover:text-white'
-                        }`}
-                      >
-                        <ChildIcon size={14} strokeWidth={1.75} />
-                        {child.label}
-                      </Link>
-                    );
-                  })}
+              {/* Submenu: selalu dirender, tingginya dianimasikan lewat grid-template-rows */}
+              <div
+                className={`grid transition-[grid-template-rows] duration-300 ease-out ${
+                  isOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+                }`}
+              >
+                <div className="overflow-hidden" inert={!isOpen}>
+                  <div className="bg-black/10">
+                    {item.children.map((child) => {
+                      const ChildIcon = child.icon;
+                      const isChildActive = location.pathname === child.path;
+                      return (
+                        <Link
+                          key={child.path}
+                          to={child.path}
+                          className={`flex items-center gap-3 pl-10 pr-5 py-2 text-xs transition-colors ${
+                            isChildActive
+                              ? 'text-white font-medium'
+                              : 'text-blue-200/60 hover:text-white'
+                          }`}
+                        >
+                          <ChildIcon size={14} strokeWidth={1.75} />
+                          {child.label}
+                        </Link>
+                      );
+                    })}
+                  </div>
                 </div>
-              )}
+              </div>
             </div>
           );
         })}

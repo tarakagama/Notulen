@@ -93,6 +93,9 @@ Route::middleware(['auth:sanctum', 'viewer.readonly'])->group(function () {
     Route::get('/my-tasks', [ActionItemController::class, 'myTasks']);
     Route::patch('/action-items/{actionItem}/status', [ActionItemController::class, 'updateStatus']);
     Route::delete('/action-items/{actionItem}', [ActionItemController::class, 'destroy']);
+    Route::get('/action-items/to-verify', [ActionItemController::class, 'toVerify']);
+    Route::post('/action-items/{actionItem}/verify', [ActionItemController::class, 'verify']);
+    Route::get('/action-items/{actionItem}/logs', [ActionItemController::class, 'logs']);
 
     // ── Executive Dashboard (FR-3.1-3.3) ───────────────────────────────
     Route::get('/dashboard/summary', [DashboardController::class, 'summary']);

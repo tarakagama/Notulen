@@ -1,10 +1,15 @@
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { User, Lock, Bell } from 'lucide-react';
+import { User, Lock } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { listDivisions } from '../api/divisions';
+import { updateProfile, updatePassword } from '../api/auth';
+import { roleLabel } from '../lib/statuslabels';
+import { extractError } from '../lib/errors';
 
 const tabs = [
   { id: 'profil', label: 'Profil', icon: User },
   { id: 'keamanan', label: 'Keamanan', icon: Lock },
-  { id: 'notifikasi', label: 'Notifikasi', icon: Bell },
 ];
 
 export default function Settings() {
@@ -36,92 +41,149 @@ export default function Settings() {
       <div className="p-6">
         {activeTab === 'profil' && <ProfilTab />}
         {activeTab === 'keamanan' && <KeamananTab />}
-        {activeTab === 'notifikasi' && <NotifikasiTab />}
       </div>
     </div>
   );
 }
 
 function ProfilTab() {
+  const { user, updateLocalUser } = useAuth();
+  const [divisions, setDivisions] = useState([]);
+  const [fullName, setFullName] = useState(user?.full_name || '');
+  const [position, setPosition] = useState(user?.position_title || '');
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState(null); // { type: 'ok' | 'error', text }
+
+  useEffect(() => {
+    listDivisions().then(setDivisions).catch(() => {});
+  }, []);
+
+  const divisionName = divisions.find((d) => d.id === user?.division_id)?.division_name || user?.division || '-';
+  const initial = (fullName || user?.full_name || '?').trim().charAt(0).toUpperCase();
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setMessage(null);
+    setSaving(true);
+    try {
+      const updated = await updateProfile({
+        full_name: fullName.trim(),
+        position_title: position.trim() || null,
+      });
+      updateLocalUser(updated);
+      setMessage({ type: 'ok', text: 'Profil berhasil disimpan.' });
+    } catch (err) {
+      setMessage({ type: 'error', text: extractError(err, 'Gagal menyimpan profil.') });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <div>
+    <form onSubmit={handleSave}>
       <h2 className="text-sm font-semibold text-gray-800 mb-1">Informasi Profil</h2>
-      <p className="text-sm text-gray-500 mb-5">Perbarui data pribadi dan foto profil kamu.</p>
+      <p className="text-sm text-gray-500 mb-5">Nama dan jabatan bisa kamu ubah. Email dan divisi diatur oleh admin.</p>
 
       <div className="flex items-center gap-4 mb-6">
         <div className="w-14 h-14 rounded-full bg-[#0f2557] text-white text-lg flex items-center justify-center font-medium">
-          T
+          {initial}
         </div>
-        <button className="text-sm border border-gray-300 rounded px-3 py-1.5 text-gray-600 hover:bg-gray-50">
-          Ganti Foto
-        </button>
+        <div>
+          <p className="text-sm font-medium text-gray-800">{user?.full_name || '-'}</p>
+          <p className="text-xs text-gray-500">{roleLabel(user?.global_role)}</p>
+        </div>
       </div>
 
       <div className="space-y-4 max-w-md">
-        <Field label="Nama Lengkap" defaultValue="Taraka" />
-        <Field label="Email" defaultValue="taraka@plnepi.co.id" type="email" />
-        <Field label="Divisi" defaultValue="IT & Digitalization" />
+        <Field label="Nama Lengkap" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
+        <Field label="Email" type="email" value={user?.email || ''} readOnly />
+        <Field label="Divisi" value={divisionName} readOnly />
+        <Field label="Jabatan" value={position} onChange={(e) => setPosition(e.target.value)} />
       </div>
 
-      <button className="mt-6 text-sm text-white bg-[#0f2557] rounded px-4 py-2 hover:bg-[#0c1e47]">
-        Simpan Perubahan
+      {message && (
+        <p className={`mt-4 text-xs max-w-md ${message.type === 'ok' ? 'text-green-700' : 'text-red-600'}`}>{message.text}</p>
+      )}
+
+      <button
+        type="submit"
+        disabled={saving || !fullName.trim()}
+        className="mt-6 text-sm text-white bg-[#0f2557] rounded px-4 py-2 hover:bg-[#0c1e47] disabled:opacity-60"
+      >
+        {saving ? 'Menyimpan...' : 'Simpan Perubahan'}
       </button>
-    </div>
+    </form>
   );
 }
 
 function KeamananTab() {
+  const [form, setForm] = useState({ current_password: '', new_password: '', new_password_confirmation: '' });
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState(null);
+
+  const set = (field) => (e) => setForm({ ...form, [field]: e.target.value });
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setMessage(null);
+
+    if (form.new_password !== form.new_password_confirmation) {
+      setMessage({ type: 'error', text: 'Konfirmasi password baru tidak sama.' });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await updatePassword(form);
+      setForm({ current_password: '', new_password: '', new_password_confirmation: '' });
+      setMessage({ type: 'ok', text: 'Password berhasil diubah.' });
+    } catch (err) {
+      setMessage({ type: 'error', text: extractError(err, 'Gagal mengubah password.') });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <div>
+    <form onSubmit={handleSubmit}>
       <h2 className="text-sm font-semibold text-gray-800 mb-1">Keamanan</h2>
-      <p className="text-sm text-gray-500 mb-5">Ubah password akun kamu secara berkala.</p>
+      <p className="text-sm text-gray-500 mb-5">Ubah password akun kamu secara berkala. Minimal 8 karakter.</p>
 
       <div className="space-y-4 max-w-md">
-        <Field label="Password Saat Ini" type="password" />
-        <Field label="Password Baru" type="password" />
-        <Field label="Konfirmasi Password Baru" type="password" />
+        <Field label="Password Saat Ini" type="password" value={form.current_password} onChange={set('current_password')} required />
+        <Field label="Password Baru" type="password" value={form.new_password} onChange={set('new_password')} required />
+        <Field label="Konfirmasi Password Baru" type="password" value={form.new_password_confirmation} onChange={set('new_password_confirmation')} required />
       </div>
 
-      <button className="mt-6 text-sm text-white bg-[#0f2557] rounded px-4 py-2 hover:bg-[#0c1e47]">
-        Perbarui Password
+      {message && (
+        <p className={`mt-4 text-xs max-w-md ${message.type === 'ok' ? 'text-green-700' : 'text-red-600'}`}>{message.text}</p>
+      )}
+
+      <button
+        type="submit"
+        disabled={saving}
+        className="mt-6 text-sm text-white bg-[#0f2557] rounded px-4 py-2 hover:bg-[#0c1e47] disabled:opacity-60"
+      >
+        {saving ? 'Memperbarui...' : 'Perbarui Password'}
       </button>
-    </div>
+    </form>
   );
 }
 
-function NotifikasiTab() {
-  const options = [
-    { label: 'Notulen baru menunggu approval', checked: true },
-    { label: 'Action item mendekati deadline', checked: true },
-    { label: 'Action item terlambat', checked: true },
-    { label: 'Komentar pada notulen', checked: false },
-  ];
+function Field({ label, type = 'text', defaultValue, value, readOnly = false, required = false, onChange }) {
+  const valueProps = value !== undefined ? { value, onChange: onChange || (() => {}) } : { defaultValue: defaultValue ?? '' };
 
-  return (
-    <div>
-      <h2 className="text-sm font-semibold text-gray-800 mb-1">Preferensi Notifikasi</h2>
-      <p className="text-sm text-gray-500 mb-5">Atur notifikasi apa saja yang ingin kamu terima.</p>
-
-      <div className="space-y-3 max-w-md">
-        {options.map((opt) => (
-          <label key={opt.label} className="flex items-center justify-between py-2 border-b border-gray-50">
-            <span className="text-sm text-gray-700">{opt.label}</span>
-            <input type="checkbox" defaultChecked={opt.checked} className="w-4 h-4 accent-[#0f2557]" />
-          </label>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function Field({ label, type = 'text', defaultValue = '' }) {
   return (
     <div>
       <label className="block text-xs font-medium text-gray-700 mb-1.5">{label}</label>
       <input
         type={type}
-        defaultValue={defaultValue}
-        className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+        {...valueProps}
+        readOnly={readOnly}
+        required={required}
+        className={`w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 ${
+          readOnly ? 'bg-gray-50 text-gray-600 cursor-default' : ''
+        }`}
       />
     </div>
   );

@@ -190,7 +190,8 @@ export default function NotulenEditor() {
       priority: meta.priority || 'Medium',
     };
   });
-  const missingPic = agreementItems.filter((ai) => !ai.pic_id).length;
+
+  const missingInfo = agreementItems.filter((ai) => !ai.pic_id || !ai.deadline).length;
 
   const setMeta = (key, field) => (e) => {
     const current = agreementItems.find((ai) => ai.key === key) || {};
@@ -257,11 +258,11 @@ export default function NotulenEditor() {
       visibility: form.visibility,
       discussion_notes: [],
       action_items: agreementItems
-        .filter((ai) => ai.pic_id)
+        .filter((ai) => ai.pic_id && ai.deadline)
         .map((ai) => ({
           description: ai.text,
           pic_id: Number(ai.pic_id),
-          deadline: ai.deadline || null,
+          deadline: ai.deadline,
           priority: ai.priority,
         })),
       ...(!isEdit && {
@@ -370,7 +371,7 @@ export default function NotulenEditor() {
                     type="date"
                     value={ai.deadline}
                     onChange={setMeta(ai.key, 'deadline')}
-                    className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-blue-500"
+                    className={`px-3 py-2 text-sm border rounded focus:outline-none focus:border-blue-500 ${ai.deadline ? 'border-gray-300' : 'border-yellow-400'}`}
                   />
                   <select
                     value={ai.priority}
@@ -387,9 +388,9 @@ export default function NotulenEditor() {
           </div>
         )}
 
-        {missingPic > 0 && (
+        {missingInfo > 0 && (
           <p className="text-xs text-yellow-700 bg-yellow-50 border border-yellow-200 rounded px-3 py-2">
-            {missingPic} butir belum punya PIC dan belum akan tercatat sebagai action item.
+            {missingInfo} butir belum punya PIC atau tenggat dan belum akan tercatat sebagai action item.
           </p>
         )}
       </div>

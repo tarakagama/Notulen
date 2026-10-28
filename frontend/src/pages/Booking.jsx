@@ -13,6 +13,22 @@ import { extractError } from '../lib/errors';
 import { formatRange, toApiDateTime, todayString } from '../lib/datetime';
 import { BOOKING_STATUS_TO_LABEL } from '../lib/statuslabels';
 
+const pad2 = (n) => String(n).padStart(2, '0');
+const currentTime = () => {
+  const d = new Date();
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+};
+
+// Opsi jam per jam,buka sampai jam tutup (sesuai step input sebelumnya).
+const timeOptions = (open, close, step = 60) => {
+  const toMin = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+  const out = [];
+  for (let m = toMin(open); m <= toMin(close); m += step) {
+    out.push(`${pad2(Math.floor(m / 60))}:${pad2(m % 60)}`);
+  }
+  return out;
+};
+
 export default function Booking() {
   const { user } = useAuth();
   // Viewer hanya boleh melihat ketersediaan ruangan (read-only).
@@ -64,19 +80,37 @@ function FindRoom({ canBook, onViewMine }) {
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [result, setResult] = useState(null);
   const [scheduleKey, setScheduleKey] = useState(0);
+  const [nowTime, setNowTime] = useState(currentTime);
+    useEffect(() => {
+      const t = setInterval(() => setNowTime(currentTime()), 30000);
+      return () => clearInterval(t);
+    }, []);
 
   // Jam operasional diambil dari server (config/booking.php); nilai awal dipakai kalau gagal dimuat.
-  const [hours, setHours] = useState({ open_time: '08:00', close_time: '18:00' });
+  const [hours, setHours] = useState({ open_time: '08:00', close_time: '1600' });
 
+  const isToday = date === todayString();
+  const pastDate = !!date && date < todayString(); // tanggal lampau: hanya untuk melihat riwayat jadwal
   const orderOk = !!startTime && !!endTime && endTime > startTime;
   const withinHours = !!startTime && !!endTime
     && startTime >= hours.open_time && endTime <= hours.close_time;
-  const validRange = !!date && orderOk && withinHours;
-  const rangeError = !orderOk
-    ? 'Jam selesai harus setelah jam mulai.'
-    : !withinHours
-      ? `Booking hanya bisa antara pukul ${hours.open_time} dan ${hours.close_time}.`
-      : '';
+  const validRange = !!date && orderOk && withinHours && !pastDate;
+  const dayClosed = isToday && nowTime >= hours.close_time;          // hari ini sudah lewat jam tutup
+  // Jam mulai baru dianggap lewat kalau jamnya sudah berganti: pukul 10.20 masih bisa mulai 10.00.
+  const currentHour = `${nowTime.slice(0, 2)}:00`;
+  const startPassed = isToday && !dayClosed && !!startTime && startTime < currentHour;
+  const closedNow = pastDate || dayClosed || startPassed;
+  const rangeError = pastDate
+    ? 'Tanggal ini sudah lewat. Jadwal hanya bisa dilihat sebagai riwayat.'
+    : !orderOk
+      ? 'Jam selesai harus setelah jam mulai.'
+      : !withinHours
+        ? `Booking hanya bisa antara pukul ${hours.open_time} dan ${hours.close_time}.`
+        : dayClosed
+          ? `Booking hari ini sudah ditutup (jam operasional berakhir pukul ${hours.close_time}). Pilih tanggal lain.`
+          : startPassed
+            ? 'Jam mulai sudah lewat. Pilih jam yang belum berlalu.'
+            : '';
 
   const loadAvailability = useCallback(() => {
     if (!validRange) {
@@ -104,8 +138,13 @@ function FindRoom({ canBook, onViewMine }) {
     listUsers().then((data) => setUsers(data.data || data)).catch(() => {});
   }, []);
 
-  // Pemesan otomatis jadi notulis, jadi tidak perlu muncul sebagai peserta/approver.
-  const otherUsers = users.filter((u) => u.id !== user?.id);
+  // Pemesan otomatis jadi notulis. PIC ruangan murni tidak bisa membuka notulen, jadi tidak ditawarkan.
+  const otherUsers = users.filter(
+    (u) => u.id !== user?.id
+      && !(u.can_manage_rooms && !['SuperAdmin', 'AdminDivisi'].includes(u.global_role))
+  );
+  
+  const allTimes = timeOptions(hours.open_time, hours.close_time);
 
   return (
     <div className="space-y-4">
@@ -115,34 +154,29 @@ function FindRoom({ canBook, onViewMine }) {
           <input
             type="date"
             value={date}
-            min={todayString()}
             onChange={(e) => setDate(e.target.value)}
             className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-blue-500"
           />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1.5">Jam mulai</label>
-          <input
-            type="time"
+          <select
             value={startTime}
-            step={900}
-            min={hours.open_time}
-            max={hours.close_time}
             onChange={(e) => setStartTime(e.target.value)}
-            className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-blue-500"
-          />
+            className="px-3 py-2 text-sm border border-gray-300 rounded bg-white focus:outline-none focus:border-blue-500"
+          >
+            {allTimes.slice(0, -1).map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1.5">Jam selesai</label>
-          <input
-            type="time"
+          <select
             value={endTime}
-            step={900}
-            min={hours.open_time}
-            max={hours.close_time}
             onChange={(e) => setEndTime(e.target.value)}
-            className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-blue-500"
-          />
+            className="px-3 py-2 text-sm border border-gray-300 rounded bg-white focus:outline-none focus:border-blue-500"
+          >
+            {allTimes.slice(1).map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
         </div>
         {rangeError ? (
           <p className="text-xs text-red-600 pb-2">{rangeError}</p>
@@ -164,7 +198,7 @@ function FindRoom({ canBook, onViewMine }) {
         reloadKey={scheduleKey}
         openTime={hours.open_time}
         closeTime={hours.close_time}
-        onPick={(room, start, end) => { setStartTime(start); setEndTime(end); }}
+                onPick={dayClosed || pastDate ? undefined : (room, start, end) => { setStartTime(start); setEndTime(end); }}
       />
 
       {loading ? (
@@ -185,10 +219,12 @@ function FindRoom({ canBook, onViewMine }) {
                 </div>
                 <span
                   className={`px-2.5 py-1 rounded text-xs shrink-0 ${
-                    room.is_available ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+                    closedNow
+                      ? 'bg-gray-100 text-gray-500'
+                      : room.is_available ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
                   }`}
                 >
-                  {room.is_available ? 'Tersedia' : 'Terpakai'}
+                  {closedNow ? 'Tutup' : room.is_available ? 'Tersedia' : 'Terpakai'}
                 </span>
               </div>
 
@@ -208,7 +244,7 @@ function FindRoom({ canBook, onViewMine }) {
               {canBook && (
                 <button
                   onClick={() => setSelectedRoom(room)}
-                  disabled={!room.is_available}
+                  disabled={closedNow || !room.is_available}
                   className="mt-auto self-start text-sm text-white bg-[#0f2557] rounded px-4 py-2 hover:bg-[#0c1e47] disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Booking ruangan ini

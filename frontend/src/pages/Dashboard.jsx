@@ -54,25 +54,34 @@ export default function Dashboard() {
   const active = total - completed;
   const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
 
+  const awaiting = summary?.awaiting_verification ?? 0;
+
   const stats = [
-    { label: 'Total Notulen', value: totalMeetings, icon: FileText, color: 'text-[#0f2557]' },
-    { label: 'Menunggu Approval', value: waitingCount, icon: Hourglass, color: 'text-blue-600' },
-    { label: 'Action Item Aktif', value: active, icon: ListChecks, color: 'text-yellow-600' },
-    { label: 'Terlambat', value: summary?.overdue ?? 0, icon: AlertTriangle, color: 'text-red-600' },
-    { label: 'Selesai', value: completed, icon: CheckCircle2, color: 'text-green-600' },
+    { label: 'Total Notulen', hint: '', value: totalMeetings, icon: FileText },
+    { label: 'Notulen Menunggu Persetujuan', hint: '', value: waitingCount, icon: Hourglass },
+    { label: 'Action Item Berjalan', hint: '', value: active, icon: ListChecks },
+    { label: 'Action Item Lewat Tenggat', hint: '', value: summary?.overdue ?? 0, icon: AlertTriangle },
+    {
+      label: 'Action Item Terverifikasi',
+      hint: awaiting > 0 ? `${awaiting} masih menunggu verifikasi` : 'Selesai dan sudah diverifikasi',
+      value: completed,
+      icon: CheckCircle2,
+      color: 'text-green-600',
+    },
   ];
 
   return (
     <div className="space-y-6">
       {/* Kartu statistik */}
       <div className="grid grid-cols-5 gap-4">
-        {stats.map(({ label, value, icon: Icon, color }) => (
+        {stats.map(({ label, hint, value, icon: Icon, color }) => (
           <div key={label} className="bg-white border border-gray-200 rounded p-4">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs text-gray-500">{label}</p>
-              <Icon size={16} strokeWidth={1.75} className={color} />
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <p className="text-xs font-medium text-gray-600">{label}</p>
+              <Icon size={16} strokeWidth={1.75} className={`shrink-0 ${color}`} />
             </div>
             <span className="text-2xl font-semibold text-gray-900">{value}</span>
+            <p className="text-[11px] text-gray-400 mt-1 leading-snug">{hint}</p>
           </div>
         ))}
       </div>
@@ -82,7 +91,7 @@ export default function Dashboard() {
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-sm font-semibold text-gray-800">Progres Action Item</h2>
           <span className="text-xs text-gray-500">
-            {completed} dari {total} selesai ({completionRate}%)
+            {completed} dari {total} terverifikasi ({completionRate}%)
           </span>
         </div>
         <div className="h-2 bg-gray-100 rounded overflow-hidden">

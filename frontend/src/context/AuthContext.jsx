@@ -69,6 +69,7 @@ export function AuthProvider({ children }) {
     const canManageUsers = isSuperAdmin || isDivisionAdmin;
     // Viewer read-only: backend menolak semua aksi tulis, UI menyembunyikan tombolnya.
     const isViewer = user?.global_role === 'Viewer';
+    const isRoomPic = !isSuperAdmin && !isDivisionAdmin && !!user?.can_manage_rooms;
 
     const value = {
       user,
@@ -81,6 +82,7 @@ export function AuthProvider({ children }) {
       isDivisionAdmin,
       canManageUsers,
       isViewer,
+      isRoomPic,
       isAdmin: isSuperAdmin, // alias lama, jangan dipakai di kode baru
     };
 

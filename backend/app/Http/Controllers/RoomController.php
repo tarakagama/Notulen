@@ -407,7 +407,8 @@ class RoomController extends Controller
     }
 
     /**
-     * Booking harus selesai di hari yang sama dan berada di antara jam buka dan jam tutup.
+     * Booking harus selesai di hari yang sama, berada di antara jam buka dan jam tutup,
+     * dan jam mulainya belum lewat (dibandingkan dengan jam dinding Jakarta).
      */
     private function assertWithinOfficeHours(string $start, string $end): void
     {
@@ -425,6 +426,21 @@ class RoomController extends Controller
         if ($startAt->format('H:i') < $open || $endAt->format('H:i') > $close) {
             throw ValidationException::withMessages([
                 'start_time' => ["Booking hanya bisa antara pukul {$open} dan {$close}."],
+            ]);
+        }
+
+        // Jam booking disimpan apa adanya (wall-clock), jadi dibandingkan dengan jam dinding Jakarta.
+        // Jam yang sedang berjalan masih boleh dipakai: pukul 10.20 masih bisa mulai pukul 10.00.
+        $now = now('Asia/Jakarta');
+
+        if ($startAt->format('Y-m-d H:i') < $now->copy()->startOfHour()->format('Y-m-d H:i')) {
+            $closedToday = $startAt->toDateString() === $now->toDateString()
+                && $now->format('H:i') >= $close;
+
+            throw ValidationException::withMessages([
+                'start_time' => [$closedToday
+                    ? "Booking hari ini sudah ditutup (jam operasional berakhir pukul {$close}). Pilih tanggal lain."
+                    : 'Jam mulai sudah lewat. Pilih jam yang belum berlalu.'],
             ]);
         }
     }

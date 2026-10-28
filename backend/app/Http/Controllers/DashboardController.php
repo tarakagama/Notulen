@@ -19,13 +19,29 @@ class DashboardController extends Controller
 
         $row = $this->baseQuery($request)
             ->selectRaw(
-                "coalesce(sum(status = 'Completed'), 0) as completed,
+                "coalesce(sum(status = 'Completed' and verified_at is not null), 0) as completed,
+                 coalesce(sum(status = 'Completed' and verified_at is null), 0) as awaiting_verification,
                  coalesce(sum(status != 'Completed' and deadline < ?), 0) as overdue,
                  coalesce(sum(status = 'Open' and deadline >= ?), 0) as open_count,
                  coalesce(sum(status = 'In Progress' and deadline >= ?), 0) as in_progress",
                 [$today, $today, $today]
             )
             ->first();
+
+        $open = (int) $row->open_count;
+        $inProgress = (int) $row->in_progress;
+        $overdue = (int) $row->overdue;
+        $completed = (int) $row->completed;
+        $awaiting = (int) $row->awaiting_verification;
+
+        return [
+            'open' => $open,
+            'in_progress' => $inProgress,
+            'overdue' => $overdue,
+            'completed' => $completed,
+            'awaiting_verification' => $awaiting,
+            'total' => $open + $inProgress + $overdue + $completed + $awaiting,
+        ];
 
         $open = (int) $row->open_count;
         $inProgress = (int) $row->in_progress;

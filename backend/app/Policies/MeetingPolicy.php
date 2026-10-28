@@ -7,6 +7,16 @@ use App\Models\User;
 
 class MeetingPolicy
 {
+
+    /**
+     * PIC ruangan murni ditolak untuk semua aksi pada notulen.
+     * Mengembalikan null berarti lanjut ke pengecekan method biasa.
+     */
+    public function before(User $user, string $ability): ?bool
+    {
+        return $user->isRoomPicOnly() ? false : null;
+    }
+
     /**
      * Semua user login boleh lihat & bikin notulen baru (FR-4.4).
      */
